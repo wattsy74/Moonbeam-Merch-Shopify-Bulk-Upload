@@ -317,6 +317,7 @@ class MapEditorDialog(QDialog):
         """
         self.setStyleSheet(stylesheet)
 
+    def _build_ui(self):
         layout = QVBoxLayout(self)
 
         top = QHBoxLayout()
