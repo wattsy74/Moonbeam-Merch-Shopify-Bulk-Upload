@@ -830,7 +830,7 @@ def create_products(
         )
 
         product_id = product["id"]
-        variant_lookup: Dict[str, int] = {}
+        variant_lookup: Dict[object, int] = {}
         for variant in product.get("variants", []):
             # Key by color alone (no sizes) or color+size tuple
             if effective_sizes:
@@ -848,24 +848,36 @@ def create_products(
                 alt_text=f"{img.artwork_display} - {img.style_label} - {img.color_display}",
             )
             image_id = uploaded["id"]
-            # With sizes, link to the first size variant for each color
             if effective_sizes:
-                variant_key = (img.color_display, effective_sizes[0])
+                linked_count = 0
+                for size in effective_sizes:
+                    variant_id = variant_lookup.get((img.color_display, size))
+                    if variant_id:
+                        client.set_variant_image(variant_id=variant_id, image_id=image_id)
+                        linked_count += 1
+                if linked_count:
+                    print(
+                        "  Uploaded and linked image "
+                        f"'{img.file_path.name}' -> {linked_count} size variants for {img.color_display}"
+                    )
+                else:
+                    print(
+                        "  Uploaded image but no matching size variants found for "
+                        f"'{img.file_path.name}'"
+                    )
             else:
-                variant_key = img.color_display
-            variant_id = variant_lookup.get(variant_key)
-
-            if variant_id:
-                client.set_variant_image(variant_id=variant_id, image_id=image_id)
-                print(
-                    "  Uploaded and linked image "
-                    f"'{img.file_path.name}' -> variant {variant_id}"
-                )
-            else:
-                print(
-                    "  Uploaded image but no matching variant found for "
-                    f"'{img.file_path.name}'"
-                )
+                variant_id = variant_lookup.get(img.color_display)
+                if variant_id:
+                    client.set_variant_image(variant_id=variant_id, image_id=image_id)
+                    print(
+                        "  Uploaded and linked image "
+                        f"'{img.file_path.name}' -> variant {variant_id}"
+                    )
+                else:
+                    print(
+                        "  Uploaded image but no matching variant found for "
+                        f"'{img.file_path.name}'"
+                    )
 
             moved_to = move_uploaded_file(img.file_path, uploaded_dir)
             print(f"  Moved uploaded file -> '{moved_to}'")
