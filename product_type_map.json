@@ -1,0 +1,16 @@
+{
+  "Creator_2.0": {
+    "label": "Unisex T-Shirt",
+    "price": "24.99",
+    "template_suffix": "clothing-template",
+    "product_type": "T-Shirts",
+    "description_file": "descriptors/STTU169_tshirt_descriptor.html"
+  },
+  "Expresser_2.0": {
+    "label": "Ladies Fitted T-Shirt",
+    "price": "24.99",
+    "template_suffix": "clothing-template",
+    "product_type": "T-Shirts",
+    "description_file": "descriptors/STTW079_tshirt_descriptor.html"
+  }
+}
