@@ -750,7 +750,8 @@ def create_products(
         if product_type:
             print(f"  Shopify product_type: {product_type}")
         if effective_description:
-            print("  Description: set")
+            preview = body_html[:120].replace("\n", " ")
+            print(f"  Description: {preview}{'...' if len(body_html) > 120 else ''}")
         print(f"  Tags: {tags}")
         sku_preview = sorted({img.sku for img in images})
         print(f"  SKU range: {sku_preview[0]} ... {sku_preview[-1]}")

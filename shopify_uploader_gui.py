@@ -43,7 +43,7 @@ def configure_qt_environment() -> None:
 
 configure_qt_environment()
 
-from PySide6.QtCore import QThread, Qt, Signal, QUrl
+from PySide6.QtCore import QPoint, QRect, QSize, QThread, Qt, Signal, QUrl
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QImage, QPainter, QTextBlockFormat, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -60,6 +60,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
     QLabel,
+    QLayout,
+    QLayoutItem,
     QLineEdit,
     QListWidget,
     QMainWindow,
@@ -141,6 +143,82 @@ class UploaderWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class _FlowLayout(QLayout):
+    def __init__(self, parent=None, h_spacing: int = 4, v_spacing: int = 4):
+        super().__init__(parent)
+        self._h_spacing = h_spacing
+        self._v_spacing = v_spacing
+        self._items: list[QLayoutItem] = []
+
+    def addItem(self, item: QLayoutItem):
+        self._items.append(item)
+
+    def horizontalSpacing(self):
+        return self._h_spacing
+
+    def verticalSpacing(self):
+        return self._v_spacing
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect: QRect):
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        size += QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+        return size
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def _do_layout(self, rect: QRect, test_only: bool) -> int:
+        margins = self.contentsMargins()
+        effective = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom())
+        x = effective.x()
+        y = effective.y()
+        line_height = 0
+        for item in self._items:
+            widget = item.widget()
+            space_x = self._h_spacing
+            space_y = self._v_spacing
+            next_x = x + item.sizeHint().width() + space_x
+            if next_x - space_x > effective.right() and line_height > 0:
+                x = effective.x()
+                y = y + line_height + space_y
+                next_x = x + item.sizeHint().width() + space_x
+                line_height = 0
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+            x = next_x
+            line_height = max(line_height, item.sizeHint().height())
+        return y + line_height - rect.y() + margins.bottom()
+
+
 class MapEditorDialog(QDialog):
     def __init__(self, map_path: str, parent=None):
         super().__init__(parent)
@@ -181,6 +259,27 @@ class MapEditorDialog(QDialog):
 
         left_wrap = QWidget()
         left_layout = QVBoxLayout(left_wrap)
+        left_wrap.setMinimumWidth(260)
+
+        entry_btns = QGridLayout()
+        new_btn = QPushButton("New")
+        new_btn.clicked.connect(self.new_entry)
+        apply_btn = QPushButton("Apply To Entry")
+        apply_btn.clicked.connect(self.apply_entry)
+        del_btn = QPushButton("Delete Entry")
+        del_btn.clicked.connect(self.delete_entry)
+        clone_btn = QPushButton("Clone")
+        clone_btn.setToolTip("Clone the current style entry")
+        clone_btn.clicked.connect(lambda checked=False: self._clone_description_file())
+
+        entry_btns.addWidget(new_btn, 0, 0)
+        entry_btns.addWidget(apply_btn, 0, 1)
+        entry_btns.addWidget(del_btn, 1, 0)
+        entry_btns.addWidget(clone_btn, 1, 1)
+        entry_btns.setColumnStretch(0, 1)
+        entry_btns.setColumnStretch(1, 1)
+        left_layout.addLayout(entry_btns)
+
         self.style_list = QListWidget()
         self.style_list.currentTextChanged.connect(self.load_style)
         left_layout.addWidget(self.style_list)
@@ -223,23 +322,8 @@ class MapEditorDialog(QDialog):
 
         right_layout.addWidget(form_box)
 
-        entry_btns = QHBoxLayout()
-        new_btn = QPushButton("New")
-        new_btn.clicked.connect(self.new_entry)
-        apply_btn = QPushButton("Apply To Entry")
-        apply_btn.clicked.connect(self.apply_entry)
-        del_btn = QPushButton("Delete Entry")
-        del_btn.clicked.connect(self.delete_entry)
-
-        entry_btns.addWidget(new_btn)
-        entry_btns.addWidget(apply_btn)
-        entry_btns.addWidget(del_btn)
-        entry_btns.addStretch(1)
-
-        right_layout.addLayout(entry_btns)
-
         split.addWidget(right_wrap)
-        split.setSizes([400, 800])
+        split.setSizes([280, 820])
 
         layout.addWidget(split, 1)
 
@@ -252,130 +336,55 @@ class MapEditorDialog(QDialog):
         container = QWidget()
         layout = QVBoxLayout(container)
 
-        toolbar = QToolBar()
-        toolbar.setMovable(False)
-        toolbar.setFloatable(False)
+        # Wrapping toolbar using a flow layout
+        toolbar_widget = QWidget()
+        toolbar_layout = _FlowLayout(toolbar_widget, h_spacing=2, v_spacing=2)
 
-        bold_btn = QPushButton("B")
-        bold_btn.setToolTip("Bold")
-        bold_btn.clicked.connect(self._apply_bold)
-        toolbar.addWidget(bold_btn)
+        def _btn(label, tip, slot):
+            b = QPushButton(label)
+            b.setToolTip(tip)
+            b.clicked.connect(slot)
+            b.setSizePolicy(b.sizePolicy().horizontalPolicy(), b.sizePolicy().verticalPolicy())
+            return b
 
-        italic_btn = QPushButton("I")
-        italic_btn.setToolTip("Italic")
-        italic_btn.clicked.connect(self._apply_italic)
-        toolbar.addWidget(italic_btn)
+        toolbar_layout.addWidget(_btn("B", "Bold", self._apply_bold))
+        toolbar_layout.addWidget(_btn("I", "Italic", self._apply_italic))
+        toolbar_layout.addWidget(_btn("U", "Underline", self._apply_underline))
 
-        underline_btn = QPushButton("U")
-        underline_btn.setToolTip("Underline")
-        underline_btn.clicked.connect(self._apply_underline)
-        toolbar.addWidget(underline_btn)
-
+        toolbar_layout.addWidget(QLabel("Font"))
         self.font_family_combo = QComboBox()
         self.font_family_combo.addItems(QFontDatabase().families())
         self.font_family_combo.setCurrentText("Helvetica")
+        self.font_family_combo.setFixedWidth(160)
         self.font_family_combo.currentTextChanged.connect(self._apply_font_family)
-        toolbar.addWidget(QLabel("Font"))
-        toolbar.addWidget(self.font_family_combo)
+        toolbar_layout.addWidget(self.font_family_combo)
 
+        toolbar_layout.addWidget(QLabel("Size"))
         self.font_size_combo = QComboBox()
         self.font_size_combo.addItems([str(size) for size in range(8, 33)])
         self.font_size_combo.setCurrentText("14")
+        self.font_size_combo.setFixedWidth(54)
         self.font_size_combo.currentTextChanged.connect(self._apply_font_size)
-        toolbar.addWidget(QLabel("Size"))
-        toolbar.addWidget(self.font_size_combo)
+        toolbar_layout.addWidget(self.font_size_combo)
 
-        size_btn = QPushButton("Size")
-        size_btn.setToolTip("Set font size")
-        size_btn.clicked.connect(self._set_font_size)
-        toolbar.addWidget(size_btn)
+        toolbar_layout.addWidget(_btn("Color", "Set font color", self._set_font_color))
+        toolbar_layout.addWidget(_btn("• List", "Bullet list", self._insert_bullet_list))
+        toolbar_layout.addWidget(_btn("1. List", "Numbered list", self._insert_numbered_list))
+        toolbar_layout.addWidget(_btn("H1", "Heading 1", lambda: self._insert_heading(1)))
+        toolbar_layout.addWidget(_btn("H2", "Heading 2", lambda: self._insert_heading(2)))
+        toolbar_layout.addWidget(_btn("Quote", "Block quote", self._insert_blockquote))
+        toolbar_layout.addWidget(_btn("L", "Align left", lambda: self._set_alignment(Qt.AlignLeft)))
+        toolbar_layout.addWidget(_btn("C", "Align center", lambda: self._set_alignment(Qt.AlignCenter)))
+        toolbar_layout.addWidget(_btn("R", "Align right", lambda: self._set_alignment(Qt.AlignRight)))
+        toolbar_layout.addWidget(_btn("HR", "Horizontal rule", self._insert_horizontal_rule))
+        toolbar_layout.addWidget(_btn("Table", "Insert table", self._insert_table))
+        toolbar_layout.addWidget(_btn("Link", "Insert link", self._insert_link))
+        toolbar_layout.addWidget(_btn("Image", "Insert image", self._insert_image))
+        toolbar_layout.addWidget(_btn("Clear", "Clear formatting", self._clear_formatting))
+        toolbar_layout.addWidget(_btn("Load HTML", "Load HTML from file", self._load_description_file))
+        toolbar_layout.addWidget(_btn("Save HTML", "Save current HTML to a file", self._save_description_file))
 
-        color_btn = QPushButton("Color")
-        color_btn.setToolTip("Set font color")
-        color_btn.clicked.connect(self._set_font_color)
-        toolbar.addWidget(color_btn)
-
-        bullet_btn = QPushButton("• List")
-        bullet_btn.setToolTip("Bullet list")
-        bullet_btn.clicked.connect(self._insert_bullet_list)
-        toolbar.addWidget(bullet_btn)
-
-        numbered_btn = QPushButton("1. List")
-        numbered_btn.setToolTip("Numbered list")
-        numbered_btn.clicked.connect(self._insert_numbered_list)
-        toolbar.addWidget(numbered_btn)
-
-        h1_btn = QPushButton("H1")
-        h1_btn.setToolTip("Heading 1")
-        h1_btn.clicked.connect(lambda: self._insert_heading(1))
-        toolbar.addWidget(h1_btn)
-
-        h2_btn = QPushButton("H2")
-        h2_btn.setToolTip("Heading 2")
-        h2_btn.clicked.connect(lambda: self._insert_heading(2))
-        toolbar.addWidget(h2_btn)
-
-        quote_btn = QPushButton("Quote")
-        quote_btn.setToolTip("Block quote")
-        quote_btn.clicked.connect(self._insert_blockquote)
-        toolbar.addWidget(quote_btn)
-
-        left_btn = QPushButton("L")
-        left_btn.setToolTip("Align left")
-        left_btn.clicked.connect(lambda: self._set_alignment(Qt.AlignLeft))
-        toolbar.addWidget(left_btn)
-
-        center_btn = QPushButton("C")
-        center_btn.setToolTip("Align center")
-        center_btn.clicked.connect(lambda: self._set_alignment(Qt.AlignCenter))
-        toolbar.addWidget(center_btn)
-
-        right_btn = QPushButton("R")
-        right_btn.setToolTip("Align right")
-        right_btn.clicked.connect(lambda: self._set_alignment(Qt.AlignRight))
-        toolbar.addWidget(right_btn)
-
-        hr_btn = QPushButton("HR")
-        hr_btn.setToolTip("Horizontal rule")
-        hr_btn.clicked.connect(self._insert_horizontal_rule)
-        toolbar.addWidget(hr_btn)
-
-        table_btn = QPushButton("Table")
-        table_btn.setToolTip("Insert table")
-        table_btn.clicked.connect(self._insert_table)
-        toolbar.addWidget(table_btn)
-
-        link_btn = QPushButton("Link")
-        link_btn.setToolTip("Insert link")
-        link_btn.clicked.connect(self._insert_link)
-        toolbar.addWidget(link_btn)
-
-        image_btn = QPushButton("Image")
-        image_btn.setToolTip("Insert image")
-        image_btn.clicked.connect(self._insert_image)
-        toolbar.addWidget(image_btn)
-
-        clear_btn = QPushButton("Clear")
-        clear_btn.setToolTip("Clear formatting")
-        clear_btn.clicked.connect(self._clear_formatting)
-        toolbar.addWidget(clear_btn)
-
-        html_btn = QPushButton("Load HTML")
-        html_btn.setToolTip("Load HTML from file")
-        html_btn.clicked.connect(self._load_description_file)
-        toolbar.addWidget(html_btn)
-
-        save_html_btn = QPushButton("Save HTML")
-        save_html_btn.setToolTip("Save current HTML to a file")
-        save_html_btn.clicked.connect(self._save_description_file)
-        toolbar.addWidget(save_html_btn)
-
-        clone_html_btn = QPushButton("Clone")
-        clone_html_btn.setToolTip("Clone the current style entry")
-        clone_html_btn.clicked.connect(lambda checked=False: self._clone_description_file())
-        toolbar.addWidget(clone_html_btn)
-
-        layout.addWidget(toolbar)
+        layout.addWidget(toolbar_widget)
 
         self.description_edit = RichHtmlTextEdit(self._handle_dropped_file)
         self.description_edit.setAcceptRichText(True)
@@ -684,11 +693,50 @@ class MapEditorDialog(QDialog):
         self._sync_description_from_visual()
 
     def _insert_link(self):
-        link, ok = QInputDialog.getText(self, "Insert Link", "Link URL:")
-        if not ok or not link:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Insert Link")
+        form = QFormLayout(dialog)
+
+        url_edit = QLineEdit()
+        url_edit.setPlaceholderText("https://example.com")
+        text_edit = QLineEdit()
+        text_edit.setPlaceholderText("Display text (leave blank to use URL)")
+        title_edit = QLineEdit()
+        title_edit.setPlaceholderText("Tooltip / alt text (optional)")
+
+        # Pre-fill display text with selected editor text
+        selected = self.description_edit.textCursor().selectedText().strip()
+        if selected:
+            text_edit.setText(selected)
+
+        form.addRow("URL *", url_edit)
+        form.addRow("Display text", text_edit)
+        form.addRow("Title / tooltip", title_edit)
+
+        btns = QHBoxLayout()
+        ok_btn = QPushButton("Insert")
+        ok_btn.setDefault(True)
+        cancel_btn = QPushButton("Cancel")
+        ok_btn.clicked.connect(dialog.accept)
+        cancel_btn.clicked.connect(dialog.reject)
+        btns.addStretch(1)
+        btns.addWidget(ok_btn)
+        btns.addWidget(cancel_btn)
+        form.addRow(btns)
+
+        if dialog.exec() != QDialog.Accepted:
             return
+
+        url = url_edit.text().strip()
+        if not url:
+            return
+        display = text_edit.text().strip() or url
+        title = title_edit.text().strip()
+
+        title_attr = f' title="{title}"' if title else ""
+        html = f'<a href="{url}"{title_attr}>{display}</a>'
         cursor = self.description_edit.textCursor()
-        cursor.insertHtml(f'<a href="{link}">{link}</a>')
+        cursor.insertHtml(html)
         self.description_edit.setTextCursor(cursor)
         self._sync_description_from_visual()
 
