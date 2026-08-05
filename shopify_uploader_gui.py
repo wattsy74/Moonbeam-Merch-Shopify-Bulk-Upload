@@ -909,6 +909,7 @@ class MapEditorDialog(QDialog):
         price = self.price_edit.text().strip() or current_entry["price"]
         template_suffix = self.template_edit.text().strip() or current_entry["template_suffix"]
         product_type = self.product_type_edit.text().strip() or current_entry["product_type"]
+        sizes_map = self.sizes_map_edit.text().strip() or current_entry["sizes"]
         description_text = self.description_source_edit.toPlainText().strip()
         description_file = self.desc_file_edit.text().strip()
 
@@ -920,6 +921,8 @@ class MapEditorDialog(QDialog):
             entry["template_suffix"] = template_suffix
         if product_type:
             entry["product_type"] = product_type
+        if sizes_map:
+            entry["sizes"] = sizes_map
 
         if description_file:
             source_path = self._resolve_description_path(description_file)
@@ -950,6 +953,7 @@ class MapEditorDialog(QDialog):
         self.price_edit.setText(price)
         self.template_edit.setText(template_suffix)
         self.product_type_edit.setText(product_type)
+        self.sizes_map_edit.setText(sizes_map)
         if entry.get("description_file"):
             self.desc_file_edit.setText(entry["description_file"])
             self._load_description_file(entry["description_file"])
@@ -1034,6 +1038,8 @@ class MapEditorDialog(QDialog):
             entry["template_suffix"] = template_suffix
         if product_type:
             entry["product_type"] = product_type
+        if sizes_map:
+            entry["sizes"] = sizes_map
 
         if description_file:
             target_path = self._resolve_description_path(description_file)
