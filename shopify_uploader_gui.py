@@ -237,25 +237,26 @@ class MapEditorDialog(QDialog):
     def _apply_moonbeam_theme(self):
         """Apply Moonbeam Merch celestial theme to dialog."""
         palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#E8DFF5"))
-        palette.setColor(QPalette.Base, QColor("#F5F2FB"))
+        palette.setColor(QPalette.Window, QColor("#F5F2FB"))
+        palette.setColor(QPalette.Base, QColor("#FFFFFF"))
         palette.setColor(QPalette.WindowText, QColor("#0A1E3F"))
         palette.setColor(QPalette.Text, QColor("#0A1E3F"))
         palette.setColor(QPalette.ButtonText, QColor("#0A1E3F"))
-        palette.setColor(QPalette.Button, QColor("#D4C5E8"))
-        palette.setColor(QPalette.Highlight, QColor("#6B4C99"))
-        palette.setColor(QPalette.HighlightedText, QColor("#FFFFFF"))
+        palette.setColor(QPalette.Button, QColor("#F5F2FB"))
+        palette.setColor(QPalette.Highlight, QColor("#D4C5E8"))
+        palette.setColor(QPalette.HighlightedText, QColor("#0A1E3F"))
         self.setPalette(palette)
 
         stylesheet = """
             QDialog, QMainWindow {
-                background-color: #E8DFF5;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #F0E5F5, stop:1 #F0EFE0);
             }
             QLineEdit, QTextEdit, QComboBox {
                 background-color: #FFFFFF;
                 color: #0A1E3F;
-                border: 2px solid #D4C5E8;
-                border-radius: 6px;
+                border: 1px solid #D4C5E8;
+                border-radius: 4px;
                 padding: 6px;
                 font-size: 11px;
             }
@@ -263,24 +264,24 @@ class MapEditorDialog(QDialog):
                 border: 2px solid #6B4C99;
             }
             QPushButton {
-                background-color: #6B4C99;
-                color: #FFFFFF;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-weight: bold;
+                background-color: #FFFFFF;
+                color: #6B4C99;
+                border: 1.5px solid #6B4C99;
+                border-radius: 4px;
+                padding: 6px 14px;
+                font-weight: 600;
                 font-size: 11px;
             }
             QPushButton:hover {
-                background-color: #7D5BA6;
+                background-color: #F5F2FB;
             }
             QPushButton:pressed {
-                background-color: #5A3D7F;
+                background-color: #E8DFF5;
             }
             QGroupBox {
                 color: #0A1E3F;
-                border: 2px solid #D4C5E8;
-                border-radius: 6px;
+                border: 1px solid #D4C5E8;
+                border-radius: 4px;
                 margin-top: 8px;
                 padding-top: 8px;
             }
@@ -296,23 +297,23 @@ class MapEditorDialog(QDialog):
             QListWidget {
                 background-color: #FFFFFF;
                 color: #0A1E3F;
-                border: 2px solid #D4C5E8;
-                border-radius: 6px;
+                border: 1px solid #D4C5E8;
+                border-radius: 4px;
             }
             QListWidget::item:selected {
-                background-color: #D4C5E8;
+                background-color: #E8DFF5;
                 color: #0A1E3F;
             }
             QTabBar::tab {
-                background-color: #D4C5E8;
+                background-color: #F5F2FB;
                 color: #0A1E3F;
-                padding: 8px 16px;
-                border-bottom: 3px solid #E8DFF5;
+                padding: 6px 14px;
+                border-bottom: 2px solid transparent;
             }
             QTabBar::tab:selected {
-                background-color: #6B4C99;
-                color: #FFFFFF;
-                border-bottom: 3px solid #6B4C99;
+                background-color: #FFFFFF;
+                color: #6B4C99;
+                border-bottom: 2px solid #6B4C99;
             }
         """
         self.setStyleSheet(stylesheet)
@@ -1134,68 +1135,75 @@ class MainWindow(QMainWindow):
         self.append_output(f"Moonbeam Merch Uploader loaded from: {BASE_DIR / 'shopify_uploader_gui.py'}\n")
 
     def _apply_moonbeam_theme(self):
-        """Apply Moonbeam Merch celestial theme."""
+        """Apply Moonbeam Merch celestial theme with website gradient."""
         # Moonbeam color palette
         palette = QPalette()
-        # Soft purple gradient base
-        palette.setColor(QPalette.Window, QColor("#E8DFF5"))
-        palette.setColor(QPalette.Base, QColor("#F5F2FB"))
+        # Soft background for non-gradient areas
+        palette.setColor(QPalette.Window, QColor("#F5F2FB"))
+        palette.setColor(QPalette.Base, QColor("#FFFFFF"))
         # Dark navy text
         palette.setColor(QPalette.WindowText, QColor("#0A1E3F"))
         palette.setColor(QPalette.Text, QColor("#0A1E3F"))
         palette.setColor(QPalette.ButtonText, QColor("#0A1E3F"))
-        # Button styling
-        palette.setColor(QPalette.Button, QColor("#D4C5E8"))
+        # Subtle button background
+        palette.setColor(QPalette.Button, QColor("#F5F2FB"))
         # Highlights
-        palette.setColor(QPalette.Highlight, QColor("#6B4C99"))
-        palette.setColor(QPalette.HighlightedText, QColor("#FFFFFF"))
+        palette.setColor(QPalette.Highlight, QColor("#D4C5E8"))
+        palette.setColor(QPalette.HighlightedText, QColor("#0A1E3F"))
         self.setPalette(palette)
 
-        # Modern stylesheet with celestial theme
+        # Modern stylesheet with subtle buttons and clean design
         stylesheet = """
-            QMainWindow, QDialog {
-                background-color: #E8DFF5;
+            QMainWindow {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #F0E5F5, stop:1 #F0EFE0);
+            }
+            QDialog {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
+                    stop:0 #F0E5F5, stop:1 #F0EFE0);
             }
             QLineEdit, QTextEdit, QComboBox {
                 background-color: #FFFFFF;
                 color: #0A1E3F;
-                border: 2px solid #D4C5E8;
-                border-radius: 6px;
+                border: 1px solid #D4C5E8;
+                border-radius: 4px;
                 padding: 6px;
                 font-size: 11px;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
             }
             QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
                 border: 2px solid #6B4C99;
-                outline: none;
             }
             QPushButton {
-                background-color: #6B4C99;
-                color: #FFFFFF;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 16px;
-                font-weight: bold;
+                background-color: #FFFFFF;
+                color: #6B4C99;
+                border: 1.5px solid #6B4C99;
+                border-radius: 4px;
+                padding: 6px 14px;
+                font-weight: 600;
                 font-size: 11px;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
             }
             QPushButton:hover {
-                background-color: #7D5BA6;
+                background-color: #F5F2FB;
+                border: 1.5px solid #6B4C99;
             }
             QPushButton:pressed {
-                background-color: #5A3D7F;
+                background-color: #E8DFF5;
+                border: 1.5px solid #6B4C99;
             }
             QPushButton:disabled {
-                background-color: #C9B5D9;
-                color: #8A7FA8;
+                color: #B8A8D0;
+                border: 1.5px solid #D4C5E8;
             }
             QGroupBox {
                 color: #0A1E3F;
-                border: 2px solid #D4C5E8;
-                border-radius: 6px;
+                border: 1px solid #D4C5E8;
+                border-radius: 4px;
                 margin-top: 8px;
                 padding-top: 8px;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+                font-weight: 600;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
@@ -1215,35 +1223,35 @@ class MainWindow(QMainWindow):
             QListWidget {
                 background-color: #FFFFFF;
                 color: #0A1E3F;
-                border: 2px solid #D4C5E8;
-                border-radius: 6px;
+                border: 1px solid #D4C5E8;
+                border-radius: 4px;
             }
             QListWidget::item:selected {
-                background-color: #D4C5E8;
+                background-color: #E8DFF5;
                 color: #0A1E3F;
             }
             QListWidget::item:hover {
-                background-color: #ECDAE5;
+                background-color: #F0EFE0;
             }
             QTabBar::tab {
-                background-color: #D4C5E8;
+                background-color: #F5F2FB;
                 color: #0A1E3F;
-                padding: 8px 16px;
+                padding: 6px 14px;
                 border: none;
-                border-bottom: 3px solid #E8DFF5;
+                border-bottom: 2px solid transparent;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
             }
             QTabBar::tab:selected {
-                background-color: #6B4C99;
-                color: #FFFFFF;
-                border-bottom: 3px solid #6B4C99;
+                background-color: #FFFFFF;
+                color: #6B4C99;
+                border-bottom: 2px solid #6B4C99;
             }
             QTabWidget::pane {
-                border: 2px solid #D4C5E8;
-                border-radius: 6px;
+                border: 1px solid #D4C5E8;
+                border-radius: 4px;
             }
             QSplitter::handle {
-                background-color: #D4C5E8;
+                background-color: #E8DFF5;
             }
         """
         self.setStyleSheet(stylesheet)
