@@ -228,6 +228,7 @@ class MapEditorDialog(QDialog):
 
         self.map_path = Path(map_path) if map_path else DEFAULT_MAP_PATH
         self.map_data: dict[str, dict] = {}
+        self._dirty = False
         self._updating_description_content = False
         self._description_source_path: Path | None = None
 
@@ -941,6 +942,7 @@ class MapEditorDialog(QDialog):
             entry["description"] = description_text
 
         self.map_data[new_style] = entry
+        self._dirty = True
         self.refresh_style_list()
 
         for i in range(self.style_list.count()):
@@ -1057,6 +1059,7 @@ class MapEditorDialog(QDialog):
             entry["description"] = description
 
         self.map_data[style_code] = entry
+        self._dirty = True
         self.refresh_style_list()
 
         for i in range(self.style_list.count()):
@@ -1107,18 +1110,23 @@ class MapEditorDialog(QDialog):
             if not isinstance(data, dict):
                 raise ValueError("Map root must be a JSON object")
             self.map_data = data
+            self._dirty = False
             self.refresh_style_list()
         except Exception as exc:
             QMessageBox.critical(self, "Load Error", f"Could not load map:\n{exc}")
 
-    def save_map(self):
+    def save_map(self, show_feedback: bool = True) -> bool:
         self.map_path = Path(self.map_path_edit.text() or DEFAULT_MAP_PATH)
         try:
             self.map_path.parent.mkdir(parents=True, exist_ok=True)
             self.map_path.write_text(json.dumps(self.map_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            QMessageBox.information(self, "Saved", f"Map saved:\n{self.map_path}")
+            self._dirty = False
+            if show_feedback:
+                QMessageBox.information(self, "Saved", f"Map saved:\n{self.map_path}")
+            return True
         except Exception as exc:
             QMessageBox.critical(self, "Save Error", f"Could not save map:\n{exc}")
+            return False
 
     def refresh_style_list(self):
         self.style_list.clear()
@@ -1129,8 +1137,32 @@ class MapEditorDialog(QDialog):
         style_code = self.style_code_edit.text().strip()
         if style_code and style_code in self.map_data:
             del self.map_data[style_code]
+            self._dirty = True
             self.refresh_style_list()
             self.new_entry()
+
+    def closeEvent(self, event):
+        if not self._dirty:
+            event.accept()
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            "You have unsaved map changes. Save before closing?",
+            QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+            QMessageBox.Yes,
+        )
+
+        if answer == QMessageBox.Yes:
+            if self.save_map(show_feedback=False):
+                event.accept()
+            else:
+                event.ignore()
+        elif answer == QMessageBox.No:
+            event.accept()
+        else:
+            event.ignore()
 
 
 class MainWindow(QMainWindow):
