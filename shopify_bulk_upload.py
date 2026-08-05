@@ -51,6 +51,7 @@ class ProductTypeConfig:
     product_type: Optional[str]
     description: Optional[str]
     sizes: Optional[List[str]]
+    size_prices: Optional[Dict[str, str]]
 
 
 @dataclass
@@ -68,6 +69,7 @@ class ParsedImage:
     style_product_type: Optional[str]
     style_description: Optional[str]
     style_sizes: Optional[List[str]]
+    style_size_prices: Optional[Dict[str, str]]
     color_raw: str
     color_display: str
 
@@ -495,6 +497,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     style_product_type = style_config.product_type
     style_description = style_config.description
     style_sizes = style_config.sizes
+    style_size_prices = style_config.size_prices
 
     sku = f"{code_a}_{code_b}_{code_c}-{artwork_raw}"
     artwork_display = to_title_case(artwork_raw.replace("-", " ").strip())
@@ -515,6 +518,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
         style_product_type=style_product_type,
         style_description=style_description,
         style_sizes=style_sizes,
+        style_size_prices=style_size_prices,
         color_raw=color_raw,
         color_display=color_display,
     )
@@ -616,6 +620,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
                 product_type=None,
                 description=None,
                 sizes=None,
+                size_prices=None,
             )
             continue
 
@@ -631,6 +636,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
         description_raw = value.get("description", None)
         description_file_raw = value.get("description_file", None)
         sizes_raw = value.get("sizes", None)
+        size_prices_raw = value.get("size_prices", None)
         if not isinstance(label_raw, str) or not label_raw.strip():
             raise ValueError(f"Product type label for '{key}' must be a non-empty string")
         if not isinstance(price_raw, str) or not price_raw.strip():
@@ -663,6 +669,10 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
             raise ValueError(
                 f"Product type '{key}' cannot define both description and description_file"
             )
+        if size_prices_raw is not None and not isinstance(size_prices_raw, dict):
+            raise ValueError(
+                f"Product type size_prices for '{key}' must be an object when provided"
+            )
 
         resolved_description: Optional[str] = None
         if isinstance(description_raw, str):
@@ -677,6 +687,20 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
                 )
             resolved_description = description_file_path.read_text(encoding="utf-8").strip()
 
+        resolved_size_prices: Optional[Dict[str, str]] = None
+        if isinstance(size_prices_raw, dict):
+            resolved_size_prices = {}
+            for size_key, size_price in size_prices_raw.items():
+                if not isinstance(size_key, str) or not size_key.strip():
+                    raise ValueError(
+                        f"Product type size_prices for '{key}' contains an invalid size key"
+                    )
+                if not isinstance(size_price, str) or not size_price.strip():
+                    raise ValueError(
+                        f"Product type size_prices for '{key}' has an invalid price for size '{size_key}'"
+                    )
+                resolved_size_prices[size_key.strip()] = size_price.strip()
+
         parsed[style_code] = ProductTypeConfig(
             label=label_raw.strip(),
             price=price_raw.strip(),
@@ -684,6 +708,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
             product_type=(product_type_raw.strip() if isinstance(product_type_raw, str) else None),
             description=resolved_description,
             sizes=([s.strip() for s in sizes_raw.split(",") if s.strip()] if isinstance(sizes_raw, str) else None),
+            size_prices=resolved_size_prices,
         )
 
     return parsed
@@ -744,18 +769,20 @@ def create_products(
         body_html = make_body_html(effective_description)
         # sizes arg overrides map; fall back to map's sizes
         effective_sizes = sizes if sizes is not None else images[0].style_sizes
+        size_price_map = images[0].style_size_prices or {}
 
         variants_payload = []
         for img in sorted(images, key=lambda i: i.color_display):
             variant_price = price_override if price_override else img.style_price
             if effective_sizes:
                 for size in effective_sizes:
+                    chosen_price = price_override if price_override else size_price_map.get(size, img.style_price)
                     variants_payload.append(
                         {
                             "option1": img.color_display,
                             "option2": size,
                             "sku": f"{img.sku}-{size.replace(' ', '-')}",
-                            "price": variant_price,
+                            "price": chosen_price,
                         }
                     )
             else:

@@ -385,6 +385,8 @@ class MapEditorDialog(QDialog):
         self.product_type_edit = QLineEdit()
         self.sizes_map_edit = QLineEdit()
         self.sizes_map_edit.setPlaceholderText("e.g. S,M,L,XL,XXL  or  Age 3-4,Age 5-6  or  500ML,1000ML")
+        self.size_prices_map_edit = QLineEdit()
+        self.size_prices_map_edit.setPlaceholderText("e.g. S:24.99, M:24.99, XL:26.99 or 500ML:14.99, 1000ML:19.99")
 
         desc_file_row = QHBoxLayout()
         self.desc_file_edit = QLineEdit()
@@ -403,6 +405,7 @@ class MapEditorDialog(QDialog):
         form.addRow("template_suffix", self.template_edit)
         form.addRow("product_type", self.product_type_edit)
         form.addRow("sizes", self.sizes_map_edit)
+        form.addRow("size_prices", self.size_prices_map_edit)
 
         desc_file_wrap = QWidget()
         desc_file_wrap.setLayout(desc_file_row)
@@ -530,6 +533,33 @@ class MapEditorDialog(QDialog):
             return str(rel).replace("\\", "/")
         except Exception:
             return str(path)
+
+    def _parse_size_prices_map(self, text: str) -> dict[str, str]:
+        result: dict[str, str] = {}
+        if not text.strip():
+            return result
+        parts = [p.strip() for p in text.split(",") if p.strip()]
+        for part in parts:
+            if ":" not in part:
+                raise ValueError(f"Invalid size_prices item '{part}'. Use format SIZE:PRICE")
+            size, price = part.split(":", 1)
+            size = size.strip()
+            price = price.strip()
+            if not size or not price:
+                raise ValueError(f"Invalid size_prices item '{part}'. Use format SIZE:PRICE")
+            result[size] = price
+        return result
+
+    def _format_size_prices_map(self, value) -> str:
+        if isinstance(value, dict):
+            pairs: list[str] = []
+            for size, price in value.items():
+                if isinstance(size, str) and isinstance(price, str) and size.strip() and price.strip():
+                    pairs.append(f"{size.strip()}:{price.strip()}")
+            return ", ".join(pairs)
+        if isinstance(value, str):
+            return value.strip()
+        return ""
 
     def _set_description_content(self, html_text: str):
         self._updating_description_content = True
@@ -911,6 +941,7 @@ class MapEditorDialog(QDialog):
         template_suffix = self.template_edit.text().strip() or current_entry["template_suffix"]
         product_type = self.product_type_edit.text().strip() or current_entry["product_type"]
         sizes_map = self.sizes_map_edit.text().strip() or current_entry["sizes"]
+        size_prices_text = self.size_prices_map_edit.text().strip() or current_entry["size_prices"]
         description_text = self.description_source_edit.toPlainText().strip()
         description_file = self.desc_file_edit.text().strip()
 
@@ -924,6 +955,12 @@ class MapEditorDialog(QDialog):
             entry["product_type"] = product_type
         if sizes_map:
             entry["sizes"] = sizes_map
+        if size_prices_text:
+            try:
+                entry["size_prices"] = self._parse_size_prices_map(size_prices_text)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Invalid size_prices", str(exc))
+                return None
 
         if description_file:
             source_path = self._resolve_description_path(description_file)
@@ -956,6 +993,7 @@ class MapEditorDialog(QDialog):
         self.template_edit.setText(template_suffix)
         self.product_type_edit.setText(product_type)
         self.sizes_map_edit.setText(sizes_map)
+        self.size_prices_map_edit.setText(size_prices_text)
         if entry.get("description_file"):
             self.desc_file_edit.setText(entry["description_file"])
             self._load_description_file(entry["description_file"])
@@ -996,6 +1034,7 @@ class MapEditorDialog(QDialog):
         self.template_edit.setText(entry["template_suffix"])
         self.product_type_edit.setText(entry["product_type"])
         self.sizes_map_edit.setText(entry["sizes"])
+        self.size_prices_map_edit.setText(entry["size_prices"])
         self.desc_file_edit.setText(entry["description_file"])
         if entry["description_file"]:
             self._load_description_file(entry["description_file"])
@@ -1010,6 +1049,7 @@ class MapEditorDialog(QDialog):
         self.template_edit.clear()
         self.product_type_edit.clear()
         self.sizes_map_edit.clear()
+        self.size_prices_map_edit.clear()
         self.desc_file_edit.clear()
         self._description_source_path = None
         self._set_description_content("")
@@ -1022,6 +1062,7 @@ class MapEditorDialog(QDialog):
         template_suffix = self.template_edit.text().strip()
         product_type = self.product_type_edit.text().strip()
         sizes_map = self.sizes_map_edit.text().strip()
+        size_prices_text = self.size_prices_map_edit.text().strip()
         description_file = self.desc_file_edit.text().strip()
         description = self.description_source_edit.toPlainText().strip()
 
@@ -1042,6 +1083,12 @@ class MapEditorDialog(QDialog):
             entry["product_type"] = product_type
         if sizes_map:
             entry["sizes"] = sizes_map
+        if size_prices_text:
+            try:
+                entry["size_prices"] = self._parse_size_prices_map(size_prices_text)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Invalid size_prices", str(exc))
+                return False
 
         if description_file:
             target_path = self._resolve_description_path(description_file)
@@ -1076,6 +1123,7 @@ class MapEditorDialog(QDialog):
                 "template_suffix": "",
                 "product_type": "",
                 "sizes": "",
+                "size_prices": "",
                 "description_file": "",
                 "description": "",
             }
@@ -1086,6 +1134,7 @@ class MapEditorDialog(QDialog):
                 "template_suffix": "",
                 "product_type": "",
                 "sizes": "",
+                "size_prices": "",
                 "description_file": "",
                 "description": "",
             }
@@ -1095,6 +1144,7 @@ class MapEditorDialog(QDialog):
             "template_suffix": str(value.get("template_suffix", "") or ""),
             "product_type": str(value.get("product_type", "") or ""),
             "sizes": str(value.get("sizes", "") or ""),
+            "size_prices": self._format_size_prices_map(value.get("size_prices", {})),
             "description_file": str(value.get("description_file", "") or ""),
             "description": str(value.get("description", "") or ""),
         }
