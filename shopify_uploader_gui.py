@@ -382,6 +382,8 @@ class MapEditorDialog(QDialog):
         self.price_edit = QLineEdit("0.00")
         self.template_edit = QLineEdit()
         self.product_type_edit = QLineEdit()
+        self.sizes_map_edit = QLineEdit()
+        self.sizes_map_edit.setPlaceholderText("e.g. S,M,L,XL,XXL  or  Age 3-4,Age 5-6  or  500ML,1000ML")
 
         desc_file_row = QHBoxLayout()
         self.desc_file_edit = QLineEdit()
@@ -399,6 +401,7 @@ class MapEditorDialog(QDialog):
         form.addRow("price", self.price_edit)
         form.addRow("template_suffix", self.template_edit)
         form.addRow("product_type", self.product_type_edit)
+        form.addRow("sizes", self.sizes_map_edit)
 
         desc_file_wrap = QWidget()
         desc_file_wrap.setLayout(desc_file_row)
@@ -986,6 +989,7 @@ class MapEditorDialog(QDialog):
         self.price_edit.setText(entry["price"])
         self.template_edit.setText(entry["template_suffix"])
         self.product_type_edit.setText(entry["product_type"])
+        self.sizes_map_edit.setText(entry["sizes"])
         self.desc_file_edit.setText(entry["description_file"])
         if entry["description_file"]:
             self._load_description_file(entry["description_file"])
@@ -999,6 +1003,7 @@ class MapEditorDialog(QDialog):
         self.price_edit.setText("0.00")
         self.template_edit.clear()
         self.product_type_edit.clear()
+        self.sizes_map_edit.clear()
         self.desc_file_edit.clear()
         self._description_source_path = None
         self._set_description_content("")
@@ -1010,6 +1015,7 @@ class MapEditorDialog(QDialog):
         price = self.price_edit.text().strip() or "0.00"
         template_suffix = self.template_edit.text().strip()
         product_type = self.product_type_edit.text().strip()
+        sizes_map = self.sizes_map_edit.text().strip()
         description_file = self.desc_file_edit.text().strip()
         description = self.description_source_edit.toPlainText().strip()
 
@@ -1059,6 +1065,7 @@ class MapEditorDialog(QDialog):
                 "price": "0.00",
                 "template_suffix": "",
                 "product_type": "",
+                "sizes": "",
                 "description_file": "",
                 "description": "",
             }
@@ -1068,6 +1075,7 @@ class MapEditorDialog(QDialog):
                 "price": "0.00",
                 "template_suffix": "",
                 "product_type": "",
+                "sizes": "",
                 "description_file": "",
                 "description": "",
             }
@@ -1076,6 +1084,7 @@ class MapEditorDialog(QDialog):
             "price": str(value.get("price", "0.00")),
             "template_suffix": str(value.get("template_suffix", "") or ""),
             "product_type": str(value.get("product_type", "") or ""),
+            "sizes": str(value.get("sizes", "") or ""),
             "description_file": str(value.get("description_file", "") or ""),
             "description": str(value.get("description", "") or ""),
         }

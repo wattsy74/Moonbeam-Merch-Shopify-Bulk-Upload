@@ -50,6 +50,7 @@ class ProductTypeConfig:
     template_suffix: Optional[str]
     product_type: Optional[str]
     description: Optional[str]
+    sizes: Optional[List[str]]
 
 
 @dataclass
@@ -66,6 +67,7 @@ class ParsedImage:
     style_template_suffix: Optional[str]
     style_product_type: Optional[str]
     style_description: Optional[str]
+    style_sizes: Optional[List[str]]
     color_raw: str
     color_display: str
 
@@ -492,6 +494,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     style_template_suffix = style_config.template_suffix
     style_product_type = style_config.product_type
     style_description = style_config.description
+    style_sizes = style_config.sizes
 
     sku = f"{code_a}_{code_b}_{code_c}-{artwork_raw}"
     artwork_display = to_title_case(artwork_raw.replace("-", " ").strip())
@@ -511,6 +514,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
         style_template_suffix=style_template_suffix,
         style_product_type=style_product_type,
         style_description=style_description,
+        style_sizes=style_sizes,
         color_raw=color_raw,
         color_display=color_display,
     )
@@ -611,6 +615,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
                 template_suffix=None,
                 product_type=None,
                 description=None,
+                sizes=None,
             )
             continue
 
@@ -625,6 +630,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
         product_type_raw = value.get("product_type", None)
         description_raw = value.get("description", None)
         description_file_raw = value.get("description_file", None)
+        sizes_raw = value.get("sizes", None)
         if not isinstance(label_raw, str) or not label_raw.strip():
             raise ValueError(f"Product type label for '{key}' must be a non-empty string")
         if not isinstance(price_raw, str) or not price_raw.strip():
@@ -677,6 +683,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
             template_suffix=(template_suffix_raw.strip() if isinstance(template_suffix_raw, str) else None),
             product_type=(product_type_raw.strip() if isinstance(product_type_raw, str) else None),
             description=resolved_description,
+            sizes=([s.strip() for s in sizes_raw.split(",") if s.strip()] if isinstance(sizes_raw, str) else None),
         )
 
     return parsed
@@ -735,12 +742,14 @@ def create_products(
         product_type = images[0].style_product_type
         effective_description = description if description else images[0].style_description
         body_html = make_body_html(effective_description)
+        # sizes arg overrides map; fall back to map's sizes
+        effective_sizes = sizes if sizes is not None else images[0].style_sizes
 
         variants_payload = []
         for img in sorted(images, key=lambda i: i.color_display):
             variant_price = price_override if price_override else img.style_price
-            if sizes:
-                for size in sizes:
+            if effective_sizes:
+                for size in effective_sizes:
                     variants_payload.append(
                         {
                             "option1": img.color_display,
@@ -774,6 +783,8 @@ def create_products(
         print(f"  Variants: {len(variants_payload)}")
 
         if dry_run:
+            if effective_sizes:
+                print(f"  Sizes: {', '.join(effective_sizes)} (from {'--sizes override' if sizes else 'map'})")
             for v in variants_payload:
                 size_part = f" / Size={v['option2']}" if 'option2' in v else ""
                 print(f"    - {v['option1']}{size_part} / SKU={v['sku']} / Price={v['price']}")
@@ -788,14 +799,14 @@ def create_products(
             product_type=product_type,
             variants=variants_payload,
             publish_status=publish_status,
-            sizes=sizes,
+            sizes=effective_sizes,
         )
 
         product_id = product["id"]
         variant_lookup: Dict[str, int] = {}
         for variant in product.get("variants", []):
             # Key by color alone (no sizes) or color+size tuple
-            if sizes:
+            if effective_sizes:
                 key = (variant.get("option1", ""), variant.get("option2", ""))
             else:
                 key = variant.get("option1", "")
@@ -811,8 +822,8 @@ def create_products(
             )
             image_id = uploaded["id"]
             # With sizes, link to the first size variant for each color
-            if sizes:
-                variant_key = (img.color_display, sizes[0])
+            if effective_sizes:
+                variant_key = (img.color_display, effective_sizes[0])
             else:
                 variant_key = img.color_display
             variant_id = variant_lookup.get(variant_key)
