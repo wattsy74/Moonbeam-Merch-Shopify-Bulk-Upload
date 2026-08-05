@@ -1015,7 +1015,7 @@ class MapEditorDialog(QDialog):
         self._set_description_content("")
         self.style_list.clearSelection()
 
-    def apply_entry(self):
+    def apply_entry(self) -> bool:
         style_code = self.style_code_edit.text().strip()
         label = self.label_edit.text().strip()
         price = self.price_edit.text().strip() or "0.00"
@@ -1027,10 +1027,10 @@ class MapEditorDialog(QDialog):
 
         if not style_code:
             QMessageBox.warning(self, "Missing style_code", "style_code is required")
-            return
+            return False
         if not label:
             QMessageBox.warning(self, "Missing label", "label is required")
-            return
+            return False
 
         entry = {
             "label": label,
@@ -1047,13 +1047,13 @@ class MapEditorDialog(QDialog):
             target_path = self._resolve_description_path(description_file)
             if target_path is None:
                 QMessageBox.warning(self, "Missing description file", "The selected description file path is invalid")
-                return
+                return False
             target_path.parent.mkdir(parents=True, exist_ok=True)
             try:
                 target_path.write_text(description, encoding="utf-8")
             except Exception as exc:
                 QMessageBox.critical(self, "Save Error", f"Could not save description file:\n{exc}")
-                return
+                return False
             entry["description_file"] = self._to_relative_description_path(target_path)
         elif description:
             entry["description"] = description
@@ -1066,6 +1066,7 @@ class MapEditorDialog(QDialog):
             if self.style_list.item(i).text() == style_code:
                 self.style_list.setCurrentRow(i)
                 break
+        return True
 
     def normalize_entry(self, value):
         if isinstance(value, str):
@@ -1117,6 +1118,11 @@ class MapEditorDialog(QDialog):
 
     def save_map(self, show_feedback: bool = True) -> bool:
         self.map_path = Path(self.map_path_edit.text() or DEFAULT_MAP_PATH)
+        # Persist the currently edited entry even if user did not click "Apply To Entry".
+        active_style = self.style_code_edit.text().strip()
+        if active_style:
+            if not self.apply_entry():
+                return False
         try:
             self.map_path.parent.mkdir(parents=True, exist_ok=True)
             self.map_path.write_text(json.dumps(self.map_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
