@@ -108,6 +108,14 @@ class ShopifyClient:
 
         raise RuntimeError(f"Rate-limit retries exceeded for {method} {endpoint}")
 
+    def _graphql(self, query: str, variables: Optional[dict] = None) -> dict:
+        payload = {"query": query, "variables": variables or {}}
+        data = self._request("POST", "/graphql.json", json_data=payload)
+        errors = data.get("errors")
+        if errors:
+            raise RuntimeError(f"Shopify GraphQL error: {errors}")
+        return data.get("data", {})
+
     def create_product(
         self,
         title: str,
@@ -199,6 +207,48 @@ class ShopifyClient:
             }
         }
         return self._request("PUT", f"/variants/{variant_id}.json", json_data=payload)["variant"]
+
+        def list_publications(self) -> List[dict]:
+                query = """
+                query ListPublications($first: Int!) {
+                    publications(first: $first) {
+                        nodes {
+                            id
+                            name
+                        }
+                    }
+                }
+                """
+                data = self._graphql(query, {"first": 50})
+                pubs = data.get("publications", {}).get("nodes", [])
+                return pubs if isinstance(pubs, list) else []
+
+        def publish_product_to_publication(self, product_id: int, publication_id: str) -> List[str]:
+                mutation = """
+                mutation PublishProduct($id: ID!, $input: [PublicationInput!]!) {
+                    publishablePublish(id: $id, input: $input) {
+                        userErrors {
+                            field
+                            message
+                        }
+                    }
+                }
+                """
+                product_gid = f"gid://shopify/Product/{product_id}"
+                data = self._graphql(
+                        mutation,
+                        {
+                                "id": product_gid,
+                                "input": [{"publicationId": publication_id}],
+                        },
+                )
+                user_errors = data.get("publishablePublish", {}).get("userErrors", [])
+                messages: List[str] = []
+                if isinstance(user_errors, list):
+                        for err in user_errors:
+                                msg = str(err.get("message", "Unknown publish error"))
+                                messages.append(msg)
+                return messages
 
 
 def build_oauth_authorize_url(
@@ -855,6 +905,34 @@ def create_products(
             f", vendor={product.get('vendor', '(none)')}"
             f", template_suffix={product.get('template_suffix', '(none)')}"
         )
+
+        if publish_status == "active":
+            try:
+                publications = client.list_publications()
+                if publications:
+                    print("  Publishing product to sales channels:")
+                    for publication in publications:
+                        pub_id = str(publication.get("id", ""))
+                        pub_name = str(publication.get("name", "(unnamed publication)"))
+                        if not pub_id:
+                            continue
+                        errors = client.publish_product_to_publication(product_id=product_id, publication_id=pub_id)
+                        if errors:
+                            print(f"    - {pub_name}: FAILED ({'; '.join(errors)})")
+                        else:
+                            print(f"    - {pub_name}: published")
+                else:
+                    print("  No publications/channels returned by API to publish into.")
+            except Exception as exc:
+                print(
+                    "  WARNING: Could not publish product to sales channels automatically. "
+                    f"Reason: {exc}"
+                )
+                print(
+                    "  Tip: add Shopify app scopes read_publications,write_publications "
+                    "and re-authorize OAuth."
+                )
+
         print("  Shopify variants created:")
         for variant in product.get("variants", []):
             variant_color = variant.get("option1", "")

@@ -50,12 +50,15 @@ pip install -r requirements.txt
   - `SHOPIFY_OAUTH_CLIENT_ID`
   - `SHOPIFY_OAUTH_CLIENT_SECRET`
   - `SHOPIFY_OAUTH_REDIRECT_URI` (recommended: `http://127.0.0.1:8787/callback`)
-  - `SHOPIFY_OAUTH_SCOPES` (for example `read_products,write_products`)
+  - `SHOPIFY_OAUTH_SCOPES` (for example `read_products,write_products,read_publications,write_publications`)
 
 Optional:
 - `SHOPIFY_ACCESS_TOKEN` to skip interactive OAuth after your first successful auth.
 
 4. Ensure your Shopify app has Admin API scopes for products (read/write).
+5. For automatic channel publication when using `--publish-status active`, include publication scopes:
+  - `read_publications`
+  - `write_publications`
 
 5. Edit `product_type_map.json` whenever you add new product types from Photoshop export naming.
 
