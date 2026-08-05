@@ -63,36 +63,25 @@ cat > "$EXECUTABLE" <<'LAUNCHER'
 #!/bin/zsh
 # Resolve project directory from the .app bundle location
 PROJ="$(cd "$(dirname "$0")/../../../" && pwd)"
-cd "$PROJ"
+LOG=/tmp/moonbeam_uploader.log
 
-# Prefer the Python.framework binary — macOS requires it for GUI apps launched
-# from Finder (it has the correct display/Cocoa entitlements).
-find_python() {
-  # Homebrew framework python (GUI-capable)
-  for fw in \
-    /opt/homebrew/opt/python@3.14/Frameworks/Python.framework/Versions/3.14/bin/python3.14 \
-    /opt/homebrew/opt/python@3.13/Frameworks/Python.framework/Versions/3.13/bin/python3.13 \
-    /opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/bin/python3.12 \
-    /opt/homebrew/opt/python@3.11/Frameworks/Python.framework/Versions/3.11/bin/python3.11 \
-    /opt/homebrew/bin/python3 \
-    /usr/local/bin/python3 \
-    python3; do
-    [[ -x "$fw" ]] && echo "$fw" && return 0
-    command -v "$fw" >/dev/null 2>&1 && echo "$fw" && return 0
-  done
-  echo python3
-}
-PY_BIN="$(find_python)"
+# Find Python at /opt/homebrew
+PY_BIN=/opt/homebrew/bin/python3
+[[ ! -x "$PY_BIN" ]] && PY_BIN=/usr/local/bin/python3
+[[ ! -x "$PY_BIN" ]] && PY_BIN=python3
 
-export PATH="/opt/homebrew/bin:$PATH"
-export QT_QPA_PLATFORM=cocoa
-
-PY_SITE="$("$PY_BIN" -c 'import site; print(site.getusersitepackages())' 2>/dev/null)"
-if [[ -n "$PY_SITE" && -d "$PY_SITE/PySide6/Qt/plugins/platforms" ]]; then
-  export QT_QPA_PLATFORM_PLUGIN_PATH="$PY_SITE/PySide6/Qt/plugins/platforms:${QT_QPA_PLATFORM_PLUGIN_PATH:-}"
-fi
-
-exec "$PY_BIN" "$PROJ/shopify_uploader_gui.py"
+# macOS TCC blocks the Python.framework binary from reading ~/Documents when
+# launched from an unsigned .app bundle. Workaround: delegate to Terminal.app,
+# which already has the required Documents access.  The terminal window closes
+# automatically after the GUI starts.
+/usr/bin/osascript << APPLESCRIPT
+tell application "Terminal"
+    set cmd to "cd '$PROJ' && '$PY_BIN' '$PROJ/shopify_uploader_gui.py' >> '$LOG' 2>&1 &"
+    set w to do script cmd
+    delay 2
+    close w
+end tell
+APPLESCRIPT
 LAUNCHER
 
 chmod +x "$EXECUTABLE"
