@@ -868,6 +868,25 @@ def create_products(
                 f" | Price={variant.get('price', '')}"
             )
 
+        # Diagnostics: detect missing option combinations that cause "Cannot find variant" in themes.
+        if effective_sizes:
+            expected_colors = sorted({img.color_display for img in images})
+            expected_pairs = {(color, size) for color in expected_colors for size in effective_sizes}
+            created_pairs = {
+                (str(v.get("option1", "")).strip(), str(v.get("option2", "")).strip())
+                for v in product.get("variants", [])
+            }
+            missing_pairs = sorted(expected_pairs - created_pairs, key=lambda p: (p[0], p[1]))
+            if missing_pairs:
+                print("  WARNING: Missing Shopify variants for these combinations:")
+                for color, size in missing_pairs:
+                    print(f"    - {color} / {size}")
+                print(
+                    "  These missing combinations can show as 'Cannot find variant' on storefront."
+                )
+            else:
+                print("  Variant matrix check: all color/size combinations exist in Shopify.")
+
         for img in images:
             uploaded = client.upload_product_image(
                 product_id=product_id,
