@@ -436,7 +436,10 @@ def get_access_token(shop_domain: str) -> str:
 
     client_id = os.getenv("SHOPIFY_OAUTH_CLIENT_ID", "").strip()
     client_secret = os.getenv("SHOPIFY_OAUTH_CLIENT_SECRET", "").strip()
-    scopes = os.getenv("SHOPIFY_OAUTH_SCOPES", "read_products,write_products").strip()
+    scopes = os.getenv(
+        "SHOPIFY_OAUTH_SCOPES",
+        "read_products,write_products,read_publications,write_publications",
+    ).strip()
     redirect_uri = os.getenv("SHOPIFY_OAUTH_REDIRECT_URI", "").strip()
 
     if not client_id or not client_secret or not redirect_uri:
@@ -910,6 +913,15 @@ def create_products(
             try:
                 publications = client.list_publications()
                 if publications:
+                    print("  Publications visible to this API token:")
+                    pub_names = [str(p.get("name", "(unnamed publication)")) for p in publications]
+                    for pub_name in pub_names:
+                        print(f"    - {pub_name}")
+                    if not any("shop" in name.lower() for name in pub_names):
+                        print(
+                            "  NOTE: 'Shop' channel publication is not visible to this API token/app. "
+                            "Products can only be auto-published to the listed channels."
+                        )
                     print("  Publishing product to sales channels:")
                     for publication in publications:
                         pub_id = str(publication.get("id", ""))
