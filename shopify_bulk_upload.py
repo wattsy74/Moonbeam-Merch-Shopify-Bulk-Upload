@@ -114,12 +114,16 @@ class ShopifyClient:
         product_type: Optional[str],
         variants: List[dict],
         publish_status: Optional[str] = None,
+        sizes: Optional[List[str]] = None,
     ) -> dict:
+        options = [{"name": "Color"}]
+        if sizes:
+            options.append({"name": "Size"})
         payload = {
             "product": {
                 "title": title,
                 "body_html": body_html,
-                "options": [{"name": "Color"}],
+                "options": options,
                 "tags": tags,
                 "variants": variants,
             }
@@ -719,6 +723,7 @@ def create_products(
     uploaded_dir: Path,
     dry_run: bool,
     publish_status: str,
+    sizes: Optional[List[str]] = None,
 ) -> None:
     total_products = len(groups)
     created = 0
@@ -734,13 +739,24 @@ def create_products(
         variants_payload = []
         for img in sorted(images, key=lambda i: i.color_display):
             variant_price = price_override if price_override else img.style_price
-            variants_payload.append(
-                {
-                    "option1": img.color_display,
-                    "sku": img.sku,
-                    "price": variant_price,
-                }
-            )
+            if sizes:
+                for size in sizes:
+                    variants_payload.append(
+                        {
+                            "option1": img.color_display,
+                            "option2": size,
+                            "sku": f"{img.sku}-{size.replace(' ', '-')}",
+                            "price": variant_price,
+                        }
+                    )
+            else:
+                variants_payload.append(
+                    {
+                        "option1": img.color_display,
+                        "sku": img.sku,
+                        "price": variant_price,
+                    }
+                )
 
         print(f"\nArtwork: {artwork}")
         print(f"  Product type: {style_label}")
@@ -759,7 +775,8 @@ def create_products(
 
         if dry_run:
             for v in variants_payload:
-                print(f"    - {v['option1']} / SKU={v['sku']} / Price={v['price']}")
+                size_part = f" / Size={v['option2']}" if 'option2' in v else ""
+                print(f"    - {v['option1']}{size_part} / SKU={v['sku']} / Price={v['price']}")
             continue
 
         product = client.create_product(
@@ -771,12 +788,17 @@ def create_products(
             product_type=product_type,
             variants=variants_payload,
             publish_status=publish_status,
+            sizes=sizes,
         )
 
         product_id = product["id"]
         variant_lookup: Dict[str, int] = {}
         for variant in product.get("variants", []):
-            key = variant.get("option1", "")
+            # Key by color alone (no sizes) or color+size tuple
+            if sizes:
+                key = (variant.get("option1", ""), variant.get("option2", ""))
+            else:
+                key = variant.get("option1", "")
             variant_lookup[key] = variant["id"]
 
         print(f"  Created Shopify product ID: {product_id}")
@@ -788,7 +810,11 @@ def create_products(
                 alt_text=f"{img.artwork_display} - {img.style_label} - {img.color_display}",
             )
             image_id = uploaded["id"]
-            variant_key = img.color_display
+            # With sizes, link to the first size variant for each color
+            if sizes:
+                variant_key = (img.color_display, sizes[0])
+            else:
+                variant_key = img.color_display
             variant_id = variant_lookup.get(variant_key)
 
             if variant_id:
@@ -865,6 +891,11 @@ def parse_args() -> argparse.Namespace:
         choices=["draft", "active"],
         help="Set Shopify products to draft (default) or active",
     )
+    parser.add_argument(
+        "--sizes",
+        default=None,
+        help="Comma-separated sizes to create as variants, e.g. 'S,M,L,XL' or 'Age 3-4,Age 5-6'",
+    )
     return parser.parse_args()
 
 
@@ -915,6 +946,8 @@ def main() -> int:
             api_version=api_version,
         )
 
+    sizes = [s.strip() for s in args.sizes.split(",") if s.strip()] if args.sizes else None
+
     try:
         create_products(
             client=client,  # type: ignore[arg-type]
@@ -925,6 +958,7 @@ def main() -> int:
             uploaded_dir=uploaded_dir,
             dry_run=args.dry_run,
             publish_status=args.publish_status,
+            sizes=sizes,
         )
     except Exception as exc:
         print(f"Error during Shopify upload: {exc}")

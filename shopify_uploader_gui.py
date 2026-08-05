@@ -1277,6 +1277,8 @@ class MainWindow(QMainWindow):
         self.map_edit = QLineEdit(str(DEFAULT_MAP_PATH))
         self.vendor_edit = QLineEdit("Moonbeam Merch")
         self.price_edit = QLineEdit()
+        self.sizes_edit = QLineEdit()
+        self.sizes_edit.setPlaceholderText("e.g. S,M,L,XL,XXL  or  Age 3-4,Age 5-6  or  500ML,1000ML")
         self.description_edit = QLineEdit()
         self.uploaded_dir_edit = QLineEdit("uploaded")
         self.dry_run_check = QCheckBox("Dry Run")
@@ -1288,11 +1290,12 @@ class MainWindow(QMainWindow):
         self._add_row(form, 1, "Map File", self.map_edit, self.browse_map)
         self._add_row(form, 2, "Vendor", self.vendor_edit)
         self._add_row(form, 3, "Price Override", self.price_edit)
-        self._add_row(form, 4, "Description Override", self.description_edit)
-        self._add_row(form, 5, "Uploaded Dir", self.uploaded_dir_edit)
+        self._add_row(form, 4, "Sizes", self.sizes_edit)
+        self._add_row(form, 5, "Description Override", self.description_edit)
+        self._add_row(form, 6, "Uploaded Dir", self.uploaded_dir_edit)
 
-        form.addWidget(self.dry_run_check, 6, 1)
-        form.addWidget(self.publish_status_check, 7, 1)
+        form.addWidget(self.dry_run_check, 7, 1)
+        form.addWidget(self.publish_status_check, 8, 1)
         layout.addWidget(form_box)
 
         btns = QHBoxLayout()
@@ -1376,6 +1379,10 @@ class MainWindow(QMainWindow):
         description = self.description_edit.text().strip()
         if description:
             cmd += ["--description", description]
+
+        sizes = self.sizes_edit.text().strip()
+        if sizes:
+            cmd += ["--sizes", sizes]
 
         if self.dry_run_check.isChecked():
             cmd.append("--dry-run")
