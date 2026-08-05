@@ -808,6 +808,15 @@ def create_products(
         sku_preview = sorted({img.sku for img in images})
         print(f"  SKU range: {sku_preview[0]} ... {sku_preview[-1]}")
         print(f"  Variants: {len(variants_payload)}")
+        print(f"  Shopify status to set: {publish_status}")
+        print(f"  Shopify vendor to set: {vendor or '(none)'}")
+        option_names = ["Color"] + (["Size"] if effective_sizes else [])
+        print(f"  Shopify options to set: {', '.join(option_names)}")
+        if effective_sizes and size_price_map and not price_override:
+            print("  Size-specific prices from map:")
+            for size in effective_sizes:
+                price_for_size = size_price_map.get(size, images[0].style_price)
+                print(f"    - {size}: {price_for_size}")
 
         if dry_run:
             if effective_sizes:
@@ -840,6 +849,24 @@ def create_products(
             variant_lookup[key] = variant["id"]
 
         print(f"  Created Shopify product ID: {product_id}")
+        print(
+            "  Shopify product created with status="
+            f"{product.get('status', '(unknown)')}"
+            f", vendor={product.get('vendor', '(none)')}"
+            f", template_suffix={product.get('template_suffix', '(none)')}"
+        )
+        print("  Shopify variants created:")
+        for variant in product.get("variants", []):
+            variant_color = variant.get("option1", "")
+            variant_size = variant.get("option2", "")
+            variant_label = f"{variant_color} / {variant_size}" if variant_size else variant_color
+            print(
+                "    - "
+                f"ID={variant.get('id')}"
+                f" | {variant_label}"
+                f" | SKU={variant.get('sku', '')}"
+                f" | Price={variant.get('price', '')}"
+            )
 
         for img in images:
             uploaded = client.upload_product_image(
@@ -848,21 +875,31 @@ def create_products(
                 alt_text=f"{img.artwork_display} - {img.style_label} - {img.color_display}",
             )
             image_id = uploaded["id"]
+            print(
+                "  Shopify image uploaded: "
+                f"ID={image_id}"
+                f" | File='{img.file_path.name}'"
+                f" | Color={img.color_display}"
+            )
             if effective_sizes:
-                linked_count = 0
+                linked_variant_ids: list[int] = []
                 for size in effective_sizes:
                     variant_id = variant_lookup.get((img.color_display, size))
                     if variant_id:
                         client.set_variant_image(variant_id=variant_id, image_id=image_id)
-                        linked_count += 1
-                if linked_count:
+                        linked_variant_ids.append(variant_id)
+                        print(
+                            "    ↳ Linked in Shopify: "
+                            f"image {image_id} -> variant {variant_id} ({img.color_display} / {size})"
+                        )
+                if linked_variant_ids:
                     print(
-                        "  Uploaded and linked image "
-                        f"'{img.file_path.name}' -> {linked_count} size variants for {img.color_display}"
+                        "  Image linkage summary: "
+                        f"{img.file_path.name} -> variants {linked_variant_ids}"
                     )
                 else:
                     print(
-                        "  Uploaded image but no matching size variants found for "
+                        "  Uploaded image but no matching size variants found in Shopify for "
                         f"'{img.file_path.name}'"
                     )
             else:
@@ -870,12 +907,12 @@ def create_products(
                 if variant_id:
                     client.set_variant_image(variant_id=variant_id, image_id=image_id)
                     print(
-                        "  Uploaded and linked image "
-                        f"'{img.file_path.name}' -> variant {variant_id}"
+                        "  Linked in Shopify: "
+                        f"image {image_id} -> variant {variant_id} ({img.color_display})"
                     )
                 else:
                     print(
-                        "  Uploaded image but no matching variant found for "
+                        "  Uploaded image but no matching Shopify variant found for "
                         f"'{img.file_path.name}'"
                     )
 
