@@ -44,7 +44,7 @@ def configure_qt_environment() -> None:
 configure_qt_environment()
 
 from PySide6.QtCore import QPoint, QRect, QSize, QThread, Qt, Signal, QUrl
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QImage, QPainter, QTextBlockFormat, QTextCursor
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QImage, QPalette, QPainter, QTextBlockFormat, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
@@ -222,8 +222,9 @@ class _FlowLayout(QLayout):
 class MapEditorDialog(QDialog):
     def __init__(self, map_path: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Product Type Map Editor")
+        self.setWindowTitle("Moonbeam Merch - Product Type Map Editor")
         self.resize(1400, 900)
+        self._apply_moonbeam_theme()
 
         self.map_path = Path(map_path) if map_path else DEFAULT_MAP_PATH
         self.map_data: dict[str, dict] = {}
@@ -233,7 +234,89 @@ class MapEditorDialog(QDialog):
         self._build_ui()
         self.load_map()
 
-    def _build_ui(self):
+    def _apply_moonbeam_theme(self):
+        """Apply Moonbeam Merch celestial theme to dialog."""
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor("#E8DFF5"))
+        palette.setColor(QPalette.Base, QColor("#F5F2FB"))
+        palette.setColor(QPalette.WindowText, QColor("#0A1E3F"))
+        palette.setColor(QPalette.Text, QColor("#0A1E3F"))
+        palette.setColor(QPalette.ButtonText, QColor("#0A1E3F"))
+        palette.setColor(QPalette.Button, QColor("#D4C5E8"))
+        palette.setColor(QPalette.Highlight, QColor("#6B4C99"))
+        palette.setColor(QPalette.HighlightedText, QColor("#FFFFFF"))
+        self.setPalette(palette)
+
+        stylesheet = """
+            QDialog, QMainWindow {
+                background-color: #E8DFF5;
+            }
+            QLineEdit, QTextEdit, QComboBox {
+                background-color: #FFFFFF;
+                color: #0A1E3F;
+                border: 2px solid #D4C5E8;
+                border-radius: 6px;
+                padding: 6px;
+                font-size: 11px;
+            }
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
+                border: 2px solid #6B4C99;
+            }
+            QPushButton {
+                background-color: #6B4C99;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #7D5BA6;
+            }
+            QPushButton:pressed {
+                background-color: #5A3D7F;
+            }
+            QGroupBox {
+                color: #0A1E3F;
+                border: 2px solid #D4C5E8;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 4px;
+            }
+            QLabel {
+                color: #0A1E3F;
+                font-size: 11px;
+            }
+            QListWidget {
+                background-color: #FFFFFF;
+                color: #0A1E3F;
+                border: 2px solid #D4C5E8;
+                border-radius: 6px;
+            }
+            QListWidget::item:selected {
+                background-color: #D4C5E8;
+                color: #0A1E3F;
+            }
+            QTabBar::tab {
+                background-color: #D4C5E8;
+                color: #0A1E3F;
+                padding: 8px 16px;
+                border-bottom: 3px solid #E8DFF5;
+            }
+            QTabBar::tab:selected {
+                background-color: #6B4C99;
+                color: #FFFFFF;
+                border-bottom: 3px solid #6B4C99;
+            }
+        """
+        self.setStyleSheet(stylesheet)
+
         layout = QVBoxLayout(self)
 
         top = QHBoxLayout()
@@ -1036,8 +1119,9 @@ class MapEditorDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self, folder: str = "", map_path: str = ""):
         super().__init__()
-        self.setWindowTitle(f"Shopify Bulk Uploader - {GUI_BUILD}")
+        self.setWindowTitle("Moonbeam Merch Uploader")
         self.resize(1100, 780)
+        self._apply_moonbeam_theme()
 
         self.worker: UploaderWorker | None = None
 
@@ -1046,14 +1130,135 @@ class MainWindow(QMainWindow):
             self.folder_edit.setText(folder)
         if map_path:
             self.map_edit.setText(map_path)
-        self.append_output(f"{GUI_BUILD} loaded from: {BASE_DIR / 'shopify_uploader_gui.py'}\n")
+        self.append_output(f"Moonbeam Merch Uploader loaded from: {BASE_DIR / 'shopify_uploader_gui.py'}\n")
+
+    def _apply_moonbeam_theme(self):
+        """Apply Moonbeam Merch celestial theme."""
+        # Moonbeam color palette
+        palette = QPalette()
+        # Soft purple gradient base
+        palette.setColor(QPalette.Window, QColor("#E8DFF5"))
+        palette.setColor(QPalette.Base, QColor("#F5F2FB"))
+        # Dark navy text
+        palette.setColor(QPalette.WindowText, QColor("#0A1E3F"))
+        palette.setColor(QPalette.Text, QColor("#0A1E3F"))
+        palette.setColor(QPalette.ButtonText, QColor("#0A1E3F"))
+        # Button styling
+        palette.setColor(QPalette.Button, QColor("#D4C5E8"))
+        # Highlights
+        palette.setColor(QPalette.Highlight, QColor("#6B4C99"))
+        palette.setColor(QPalette.HighlightedText, QColor("#FFFFFF"))
+        self.setPalette(palette)
+
+        # Modern stylesheet with celestial theme
+        stylesheet = """
+            QMainWindow, QDialog {
+                background-color: #E8DFF5;
+            }
+            QLineEdit, QTextEdit, QComboBox {
+                background-color: #FFFFFF;
+                color: #0A1E3F;
+                border: 2px solid #D4C5E8;
+                border-radius: 6px;
+                padding: 6px;
+                font-size: 11px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+            }
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
+                border: 2px solid #6B4C99;
+                outline: none;
+            }
+            QPushButton {
+                background-color: #6B4C99;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-weight: bold;
+                font-size: 11px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+            }
+            QPushButton:hover {
+                background-color: #7D5BA6;
+            }
+            QPushButton:pressed {
+                background-color: #5A3D7F;
+            }
+            QPushButton:disabled {
+                background-color: #C9B5D9;
+                color: #8A7FA8;
+            }
+            QGroupBox {
+                color: #0A1E3F;
+                border: 2px solid #D4C5E8;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 8px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 4px;
+            }
+            QLabel {
+                color: #0A1E3F;
+                font-size: 11px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+            }
+            QCheckBox, QRadioButton {
+                color: #0A1E3F;
+                font-size: 11px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+            }
+            QListWidget {
+                background-color: #FFFFFF;
+                color: #0A1E3F;
+                border: 2px solid #D4C5E8;
+                border-radius: 6px;
+            }
+            QListWidget::item:selected {
+                background-color: #D4C5E8;
+                color: #0A1E3F;
+            }
+            QListWidget::item:hover {
+                background-color: #ECDAE5;
+            }
+            QTabBar::tab {
+                background-color: #D4C5E8;
+                color: #0A1E3F;
+                padding: 8px 16px;
+                border: none;
+                border-bottom: 3px solid #E8DFF5;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+            }
+            QTabBar::tab:selected {
+                background-color: #6B4C99;
+                color: #FFFFFF;
+                border-bottom: 3px solid #6B4C99;
+            }
+            QTabWidget::pane {
+                border: 2px solid #D4C5E8;
+                border-radius: 6px;
+            }
+            QSplitter::handle {
+                background-color: #D4C5E8;
+            }
+        """
+        self.setStyleSheet(stylesheet)
 
     def _build_ui(self):
         root = QWidget()
         layout = QVBoxLayout(root)
 
-        title = QLabel("Shopify Bulk Uploader")
-        title.setStyleSheet("font-size: 20px; font-weight: 700;")
+        title = QLabel("Moonbeam Merch Uploader")
+        title.setStyleSheet("""
+            color: #0A1E3F;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+        """)
         layout.addWidget(title)
 
         form_box = QGroupBox("Upload Settings")
