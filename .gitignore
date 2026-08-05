@@ -9,4 +9,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .coverage
+# Generated app bundles and icon cache
+*.app/
+icons/
 .venv/
