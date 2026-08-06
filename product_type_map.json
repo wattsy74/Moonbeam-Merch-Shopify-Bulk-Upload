@@ -28,5 +28,21 @@
       "XXL": "26.99"
     },
     "description_file": "descriptors/STTW079_tshirt_descriptor.html"
+  },
+  "Mini_Creator_2.0": {
+    "label": "Kids T-Shirt",
+    "price": "14.99",
+    "template_suffix": "clothing-template",
+    "product_type": "T-Shirts",
+    "sizes": "3-4,5-6,7-8,9-11,12-13",
+    "description_file": "descriptors/STTK184_tshirt_descriptor.html"
+  },
+  "Baby_Creator_2.0": {
+    "label": "Baby T-Shirt",
+    "price": "10.99",
+    "template_suffix": "clothing-template",
+    "product_type": "T-Shirts",
+    "sizes": "0-6,6-12,12-18,18-24,24-36",
+    "description_file": "descriptors/STTB918_tshirt_descriptor.html"
   }
 }

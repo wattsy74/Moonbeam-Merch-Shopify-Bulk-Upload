@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QComboBox
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -54,6 +54,31 @@ class MapEditorDescriptionTests(unittest.TestCase):
 
             self.assertEqual(dialog.description_source_edit.toPlainText().strip(), "<p>Hello <b>world</b></p>")
             self.assertIn("Hello", dialog.description_preview.toHtml())
+
+    def test_preview_uses_catamaran_default_and_font_selector_is_removed(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            map_path = Path(temp_dir) / "map.json"
+            map_path.write_text("{}", encoding="utf-8")
+
+            dialog = MapEditorDialog(str(map_path))
+            dialog._set_description_content("<p>Hello</p>")
+
+            self.assertIn("font-family: Catamaran", dialog.description_preview.toHtml())
+            self.assertEqual(len(dialog.findChildren(QComboBox)), 1)
+
+    def test_sync_removes_inherited_font_family_styles(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            map_path = Path(temp_dir) / "map.json"
+            map_path.write_text("{}", encoding="utf-8")
+
+            dialog = MapEditorDialog(str(map_path))
+            dialog.description_edit.setHtml("<h1 style=\"font-family:'inherit'; color:#3f3e3e;\">Heading</h1>")
+            dialog._sync_description_from_visual()
+
+            html_text = dialog.description_source_edit.toPlainText()
+            self.assertNotIn("font-family:'inherit'", html_text)
+            self.assertNotIn("font-family:inherit", html_text)
+            self.assertIn("color:#3f3e3e", html_text)
 
     def test_clone_description_file_creates_new_copy(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -44,7 +44,7 @@ def configure_qt_environment() -> None:
 configure_qt_environment()
 
 from PySide6.QtCore import QPoint, QRect, QSize, QThread, Qt, Signal, QUrl
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QImage, QPalette, QPainter, QTextBlockFormat, QTextCursor
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPalette, QPainter, QTextBlockFormat, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
@@ -443,14 +443,6 @@ class MapEditorDialog(QDialog):
         toolbar_layout.addWidget(_btn("I", "Italic", self._apply_italic))
         toolbar_layout.addWidget(_btn("U", "Underline", self._apply_underline))
 
-        toolbar_layout.addWidget(QLabel("Font"))
-        self.font_family_combo = QComboBox()
-        self.font_family_combo.addItems(QFontDatabase().families())
-        self.font_family_combo.setCurrentText("Helvetica")
-        self.font_family_combo.setFixedWidth(160)
-        self.font_family_combo.currentTextChanged.connect(self._apply_font_family)
-        toolbar_layout.addWidget(self.font_family_combo)
-
         toolbar_layout.addWidget(QLabel("Size"))
         self.font_size_combo = QComboBox()
         self.font_size_combo.addItems([str(size) for size in range(8, 33)])
@@ -561,11 +553,37 @@ class MapEditorDialog(QDialog):
             return value.strip()
         return ""
 
+    def _sanitize_html_for_editor(self, html_text: str) -> str:
+        if not html_text:
+            return ""
+
+        def clean_style_attr(quote: str, style_text: str) -> str:
+            declarations = []
+            for declaration in style_text.split(";"):
+                declaration = declaration.strip()
+                if not declaration:
+                    continue
+                if re.match(r"^font-family\s*:\s*(?:'inherit'|\"inherit\"|inherit)\s*$", declaration, re.IGNORECASE):
+                    continue
+                declarations.append(declaration)
+            cleaned = "; ".join(declarations)
+            if not cleaned:
+                return ""
+            return f' style={quote}{cleaned}{quote}'
+
+        return re.sub(
+            r"style=(['\"])(.*?)\1",
+            lambda match: clean_style_attr(match.group(1), match.group(2)),
+            html_text,
+            flags=re.DOTALL,
+        )
+
     def _set_description_content(self, html_text: str):
         self._updating_description_content = True
-        prepared_html = self._prepare_html_for_display(html_text or "")
+        sanitized_html = self._sanitize_html_for_editor(html_text or "")
+        prepared_html = self._prepare_html_for_display(sanitized_html)
         self.description_edit.setHtml(prepared_html)
-        self.description_source_edit.setPlainText(html_text or "")
+        self.description_source_edit.setPlainText(sanitized_html)
         self._refresh_rendered_html(prepared_html)
         self._updating_description_content = False
 
@@ -573,11 +591,13 @@ class MapEditorDialog(QDialog):
         text = (html_text or "").strip()
         if not text:
             return "<p></p>"
-        return f"<div style='font-family: Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.5;'>{text}</div>"
+        return f"<div style='font-family: Catamaran, Arial, sans-serif; font-size: 13px; line-height: 1.5;'>{text}</div>"
 
     def _prepare_html_for_display(self, html_text: str) -> str:
         if not html_text:
             return ""
+
+        html_text = self._sanitize_html_for_editor(html_text)
 
         def replace_image_src(match: re.Match[str]) -> str:
             prefix, src_value, suffix = match.groups()
@@ -649,7 +669,7 @@ class MapEditorDialog(QDialog):
     def _sync_description_from_visual(self):
         if self._updating_description_content:
             return
-        html_text = self.description_edit.toHtml().strip()
+        html_text = self._sanitize_html_for_editor(self.description_edit.toHtml().strip())
         self._updating_description_content = True
         self.description_source_edit.setPlainText(html_text)
         self._refresh_rendered_html(html_text)
@@ -658,7 +678,7 @@ class MapEditorDialog(QDialog):
     def _sync_description_from_source(self):
         if self._updating_description_content:
             return
-        html_text = self.description_source_edit.toPlainText().strip()
+        html_text = self._sanitize_html_for_editor(self.description_source_edit.toPlainText().strip())
         self._updating_description_content = True
         self.description_edit.setHtml(html_text)
         self._refresh_rendered_html(html_text)
@@ -707,18 +727,6 @@ class MapEditorDialog(QDialog):
         if not color.isValid():
             return
         fmt.setForeground(color)
-        cursor.mergeCharFormat(fmt)
-        self.description_edit.setTextCursor(cursor)
-        self._sync_description_from_visual()
-
-    def _apply_font_family(self, family: str):
-        if not family:
-            return
-        cursor = self.description_edit.textCursor()
-        fmt = cursor.charFormat()
-        font = fmt.font()
-        font.setFamily(family)
-        fmt.setFont(font)
         cursor.mergeCharFormat(fmt)
         self.description_edit.setTextCursor(cursor)
         self._sync_description_from_visual()
