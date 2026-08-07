@@ -245,8 +245,6 @@ if (!smartLayer) {
         artworkDoc = app.activeDocument;
     }
 
-    alert("All artwork + style + colour variants exported!");
-
     // Launch Moonbeam Uploader if the option was ticked
     if (launchUploader) {
         var folderPath = exportFolder.fsName;

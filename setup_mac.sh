@@ -20,6 +20,15 @@ REQUIRED_FILES=(
     "run_gui_mac.command"
 )
 
+REQUIRED_DIRS=(
+    "descriptors"
+)
+
+REQUIRED_DIRS=(
+    "descriptors"
+    "icons"
+)
+
 echo "======================================"
 echo "  Moonbeam Merch Uploader — Mac Setup"
 echo "======================================"
@@ -37,6 +46,24 @@ for f in "${REQUIRED_FILES[@]}"; do
         echo "  Copied $f"
     else
         echo "  WARNING: $f not found in $SCRIPT_DIR — skipping"
+    fi
+done
+
+for d in "${REQUIRED_DIRS[@]}"; do
+    if [[ -d "$SCRIPT_DIR/$d" ]]; then
+        cp -R "$SCRIPT_DIR/$d" "$INSTALL_DIR/$d"
+        echo "  Copied $d/"
+    else
+        echo "  WARNING: $d/ not found in $SCRIPT_DIR — skipping"
+    fi
+done
+
+for d in "${REQUIRED_DIRS[@]}"; do
+    if [[ -d "$SCRIPT_DIR/$d" ]]; then
+        cp -R "$SCRIPT_DIR/$d" "$INSTALL_DIR/$d"
+        echo "  Copied $d/"
+    else
+        echo "  WARNING: $d/ not found in $SCRIPT_DIR — skipping"
     fi
 done
 

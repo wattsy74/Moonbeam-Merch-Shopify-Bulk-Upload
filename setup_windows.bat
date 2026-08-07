@@ -41,6 +41,24 @@ for %%f in (%FILES%) do (
     )
 )
 
+REM ── Copy descriptors folder ──────────────────────────────────────────────
+if exist "%SCRIPT_DIR%descriptors" (
+    xcopy /E /I /Y "%SCRIPT_DIR%descriptors" "%INSTALL_DIR%\descriptors" >nul
+    echo   Copied descriptors\
+) else (
+    echo   WARNING: descriptors\ not found - skipping
+)
+
+REM ── Copy required directories ─────────────────────────────────────────────
+for %%d in (descriptors icons) do (
+    if exist "%SCRIPT_DIR%%%d\" (
+        xcopy /E /I /Y /Q "%SCRIPT_DIR%%%d" "%INSTALL_DIR%\%%d" >nul
+        echo   Copied %%d\
+    ) else (
+        echo   WARNING: %%d\ not found - skipping
+    )
+)
+
 REM ── Copy .env ─────────────────────────────────────────────────────────────
 if exist "%SCRIPT_DIR%.env" (
     copy /Y "%SCRIPT_DIR%.env" "%INSTALL_DIR%\.env" >nul

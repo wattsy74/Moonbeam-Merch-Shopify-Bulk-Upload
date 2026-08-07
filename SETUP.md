@@ -11,8 +11,8 @@ Copy all of the following files to the same folder on the new machine:
 | `shopify_bulk_upload.py` | Image parsing and grouping helpers |
 | `shopify_uploader_gui.py` | GUI application |
 | `product_type_map.json` | Maps image filenames to product types, prices, sizes, templates |
-| `color_hex_map.json` | Maps colour names to hex values for swatch creation |
-| `.env` | Shopify API credentials (**do not share or commit this file**) |
+| `color_hex_map.json` | Maps colour names to hex values for swatch creation || `descriptors/` | HTML product description templates per shirt model |
+| `icons/` | App icons || `.env` | Shopify API credentials (**do not share or commit this file**) |
 | `requirements.txt` | Python package dependencies |
 
 ### Launchers
