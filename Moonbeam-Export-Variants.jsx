@@ -67,6 +67,58 @@ function detectArtworks(doc) {
     return arr;
 }
 
+function showStyleSelectionDialog(styleNames) {
+    var dialog = new Window("dialog", "Select styles to export", [100, 100, 420, 360]);
+    dialog.orientation = "column";
+    dialog.alignChildren = "left";
+    dialog.margins = 16;
+
+    dialog.add("statictext", undefined, "Choose which styles to process:");
+
+    var stylesPanel = dialog.add("panel", undefined, "Styles");
+    stylesPanel.orientation = "column";
+    stylesPanel.alignChildren = "left";
+    stylesPanel.margins = 12;
+    stylesPanel.alignment = ["fill", "top"];
+    stylesPanel.minimumSize = [340, Math.max(120, styleNames.length * 26 + 20)];
+
+    var checkboxes = [];
+    for (var i = 0; i < styleNames.length; i++) {
+        var checkbox = stylesPanel.add("checkbox", undefined, styleNames[i]);
+        checkbox.value = true;
+        checkboxes.push(checkbox);
+    }
+
+    var buttonGroup = dialog.add("group");
+    buttonGroup.alignment = "right";
+    var okButton = buttonGroup.add("button", undefined, "OK");
+    var cancelButton = buttonGroup.add("button", undefined, "Cancel");
+
+    okButton.onClick = function() {
+        dialog.close(1);
+    };
+    cancelButton.onClick = function() {
+        dialog.close(2);
+    };
+
+    dialog.onShow = function() {
+        dialog.layout.layout(true);
+        dialog.layout.resize();
+    };
+
+    dialog.layout.layout(true);
+    dialog.layout.resize();
+    dialog.center();
+    var result = dialog.show();
+    if (result != 1) return [];
+
+    var selectedStyles = [];
+    for (var i = 0; i < checkboxes.length; i++) {
+        if (checkboxes[i].value) selectedStyles.push(styleNames[i]);
+    }
+    return selectedStyles;
+}
+
 function exportFlattenedPNG(filename) {
     var dup = app.activeDocument.duplicate();
     var file = new File(exportFolder + "/" + filename + ".png");
@@ -102,6 +154,11 @@ if (!smartLayer) {
         }
     }
 
+    var selectedStyles = showStyleSelectionDialog(styles);
+    if (!selectedStyles || selectedStyles.length == 0) {
+        alert("No styles selected. Export cancelled.");
+    } else {
+
     // Open Smart Object once
     mainDoc.activeLayer = smartLayer;
     var idEdit = stringIDToTypeID("placedLayerEditContents");
@@ -126,16 +183,17 @@ if (!smartLayer) {
         smartLayer = findLayerRecursive(mainDoc, smartObjectLayerName);
         if (smartLayer) smartLayer.visible = true;
 
-        for (var s = 0; s < styles.length; s++) {
+        for (var s = 0; s < selectedStyles.length; s++) {
+            var styleName = selectedStyles[s];
 
             // Toggle only the selected style
             for (var ss = 0; ss < styles.length; ss++) {
                 var styleLayer = mainDoc.layers.getByName(styles[ss]);
-                setVisibilityRecursive(styleLayer, styles[ss] == styles[s]);
+                setVisibilityRecursive(styleLayer, styles[ss] == styleName);
             }
 
             // Colours inside this style
-            var styleFolder = mainDoc.layers.getByName(styles[s]);
+            var styleFolder = mainDoc.layers.getByName(styleName);
             var styleColours = detectFoldersRecursive(styleFolder, "Colour_");
 
             for (var c = 0; c < styleColours.length; c++) {
@@ -172,4 +230,5 @@ if (!smartLayer) {
     }
 
     alert("All artwork + style + colour variants exported!");
+    }
 }

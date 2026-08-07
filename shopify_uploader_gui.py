@@ -55,6 +55,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -76,7 +77,7 @@ from PySide6.QtWidgets import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-CLI_SCRIPT = BASE_DIR / "shopify_bulk_upload.py"
+CLI_SCRIPT = BASE_DIR / "shopify_bulk_upload_graphql.py"
 DEFAULT_MAP_PATH = BASE_DIR / "product_type_map.json"
 GUI_BUILD = "GUI_BUILD_2026-08-05_qt1"
 
@@ -1243,7 +1244,10 @@ class MainWindow(QMainWindow):
             self.folder_edit.setText(folder)
         if map_path:
             self.map_edit.setText(map_path)
-        self.append_output(f"Moonbeam Merch Uploader loaded from: {BASE_DIR / 'shopify_uploader_gui.py'}\n")
+        self.append_output(
+            f"Moonbeam Merch Uploader loaded from: {BASE_DIR / 'shopify_uploader_gui.py'}\n"
+            f"Upload engine: {CLI_SCRIPT.name}\n"
+        )
 
     def _apply_moonbeam_theme(self):
         """Apply Moonbeam Merch celestial theme with website gradient."""
@@ -1390,6 +1394,10 @@ class MainWindow(QMainWindow):
         self.price_edit = QLineEdit()
         self.sizes_edit = QLineEdit()
         self.sizes_edit.setPlaceholderText("e.g. S,M,L,XL,XXL  or  Age 3-4,Age 5-6  or  500ML,1000ML")
+        self.swatch_namespace_edit = QLineEdit("custom")
+        self.swatch_key_edit = QLineEdit("color-pattern")
+        self.size_namespace_edit = QLineEdit("custom")
+        self.size_key_edit = QLineEdit("size")
         self.description_edit = QLineEdit()
         self.uploaded_dir_edit = QLineEdit("uploaded")
         self.dry_run_check = QCheckBox("Dry Run")
@@ -1405,8 +1413,26 @@ class MainWindow(QMainWindow):
         self._add_row(form, 5, "Description Override", self.description_edit)
         self._add_row(form, 6, "Uploaded Dir", self.uploaded_dir_edit)
 
-        form.addWidget(self.dry_run_check, 7, 1)
-        form.addWidget(self.publish_status_check, 8, 1)
+        self.advanced_toggle = QPushButton("▶  Advanced")
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setChecked(False)
+        self.advanced_toggle.setFlat(True)
+        self.advanced_toggle.setStyleSheet("text-align: left; padding: 2px;")
+        self.advanced_toggle.clicked.connect(self._toggle_advanced)
+        form.addWidget(self.advanced_toggle, 7, 0, 1, 3)
+
+        self.advanced_frame = QFrame()
+        self.advanced_frame.setVisible(False)
+        advanced_form = QGridLayout(self.advanced_frame)
+        advanced_form.setContentsMargins(16, 0, 0, 0)
+        self._add_row(advanced_form, 0, "Swatch Namespace", self.swatch_namespace_edit)
+        self._add_row(advanced_form, 1, "Swatch Key", self.swatch_key_edit)
+        self._add_row(advanced_form, 2, "Size Namespace", self.size_namespace_edit)
+        self._add_row(advanced_form, 3, "Size Key", self.size_key_edit)
+        form.addWidget(self.advanced_frame, 8, 0, 1, 3)
+
+        form.addWidget(self.dry_run_check, 9, 1)
+        form.addWidget(self.publish_status_check, 10, 1)
         layout.addWidget(form_box)
 
         btns = QHBoxLayout()
@@ -1431,6 +1457,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.output, 1)
 
         self.setCentralWidget(root)
+
+    def _toggle_advanced(self):
+        visible = self.advanced_toggle.isChecked()
+        self.advanced_frame.setVisible(visible)
+        self.advanced_toggle.setText(("\u25bc  Advanced" if visible else "\u25b6  Advanced"))
 
     def _add_row(self, form: QGridLayout, row: int, label: str, edit: QLineEdit, browse_fn=None):
         form.addWidget(QLabel(label), row, 0)
@@ -1473,6 +1504,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Missing Map", "Please choose a map file.")
             return
 
+        if not CLI_SCRIPT.exists():
+            QMessageBox.critical(self, "Missing Script", f"Could not find {CLI_SCRIPT}")
+            return
+
         cmd = [sys.executable, "-u", str(CLI_SCRIPT), "--folder", folder, "--product-type-map", map_path]
 
         uploaded_dir = self.uploaded_dir_edit.text().strip()
@@ -1495,6 +1530,22 @@ class MainWindow(QMainWindow):
         if sizes:
             cmd += ["--sizes", sizes]
 
+        swatch_namespace = self.swatch_namespace_edit.text().strip()
+        if swatch_namespace:
+            cmd += ["--swatch-namespace", swatch_namespace]
+
+        swatch_key = self.swatch_key_edit.text().strip()
+        if swatch_key:
+            cmd += ["--swatch-key", swatch_key]
+
+        size_namespace = self.size_namespace_edit.text().strip()
+        if size_namespace:
+            cmd += ["--size-namespace", size_namespace]
+
+        size_key = self.size_key_edit.text().strip()
+        if size_key:
+            cmd += ["--size-key", size_key]
+
         if self.dry_run_check.isChecked():
             cmd.append("--dry-run")
 
@@ -1510,16 +1561,20 @@ class MainWindow(QMainWindow):
         self.worker.line.connect(self.append_output)
         self.worker.done.connect(self.on_done)
         self.worker.failed.connect(self.on_failed)
+        self.worker.finished.connect(self._clear_worker)
         self.worker.start()
 
     def on_done(self, code: int):
         self.append_output(f"\nProcess exited with code {code}\n")
         self.run_btn.setEnabled(True)
-        self.worker = None
 
     def on_failed(self, message: str):
         self.append_output(f"\nFailed to run uploader: {message}\n")
         self.run_btn.setEnabled(True)
+
+    def _clear_worker(self):
+        if self.worker is not None:
+            self.worker.deleteLater()
         self.worker = None
 
 

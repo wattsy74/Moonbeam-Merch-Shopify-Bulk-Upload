@@ -552,7 +552,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     style_sizes = style_config.sizes
     style_size_prices = style_config.size_prices
 
-    sku = f"{code_a}_{code_b}_{code_c}-{artwork_raw}"
+    sku = f"{code_a}_{code_b}_{code_c}-{artwork_raw}-{color_raw}"
     artwork_display = to_title_case(artwork_raw.replace("-", " ").strip())
     code_ab = f"{code_a}_{code_b}"
     color_display = format_color_label(color_raw)
@@ -577,13 +577,17 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     )
 
 
-def collect_images(folder: Path, product_type_map: Dict[str, ProductTypeConfig]) -> List[ParsedImage]:
+def collect_images(folder: Path, product_type_map: Dict[str, ProductTypeConfig], skip_dir: Optional[Path] = None) -> List[ParsedImage]:
     if not folder.exists() or not folder.is_dir():
         raise ValueError(f"Folder does not exist or is not a directory: {folder}")
+
+    skip_resolved = skip_dir.resolve() if skip_dir else None
 
     parsed: List[ParsedImage] = []
     for item in sorted(folder.iterdir()):
         if not item.is_file():
+            continue
+        if skip_resolved and item.resolve().parent == skip_resolved:
             continue
         if item.suffix.lower() not in IMAGE_EXTENSIONS:
             continue
@@ -603,18 +607,22 @@ def build_groups(parsed_images: List[ParsedImage]) -> Dict[Tuple[str, str], List
 
     # Prevent duplicate colors inside the same artwork + product type group.
     for group_key, images in groups.items():
-        seen: set[str] = set()
+        seen_colors: set[str] = set()
         seen_skus: set[str] = set()
         for img in images:
             color_key = img.color_display
-            if color_key in seen:
+            if color_key in seen_colors:
                 raise ValueError(
                     "Duplicate color variant found for group "
                     f"'{group_key[0]} / {group_key[1]}': color='{img.color_display}'"
                 )
-            seen.add(color_key)
+            seen_colors.add(color_key)
 
             if img.sku in seen_skus:
+                # The filename parser intentionally uses the same base SKU for every file
+                # in a given artwork/style group, so a true duplicate is only a problem if
+                # the same SKU would eventually produce the same variant row twice.
+                # We still guard against repeating identical SKU rows within the same group.
                 raise ValueError(
                     "Duplicate SKU found inside group "
                     f"'{group_key[0]} / {group_key[1]}': sku='{img.sku}'"
