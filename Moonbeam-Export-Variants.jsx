@@ -93,6 +93,15 @@ function showStyleSelectionDialog(styleNames) {
     var launchCheck = dialog.add("checkbox", undefined, "Launch Moonbeam Uploader when export completes");
     launchCheck.value = false;
 
+    var autoUploadCheck = dialog.add("checkbox", undefined, "    └ Auto-upload immediately on launch");
+    autoUploadCheck.value = false;
+    autoUploadCheck.enabled = false;
+
+    launchCheck.onClick = function() {
+        autoUploadCheck.enabled = launchCheck.value;
+        if (!launchCheck.value) autoUploadCheck.value = false;
+    };
+
     var buttonGroup = dialog.add("group");
     buttonGroup.alignment = "right";
     var okButton = buttonGroup.add("button", undefined, "OK");
@@ -120,7 +129,7 @@ function showStyleSelectionDialog(styleNames) {
     for (var i = 0; i < checkboxes.length; i++) {
         if (checkboxes[i].value) selectedStyles.push(styleNames[i]);
     }
-    return { styles: selectedStyles, launchUploader: launchCheck.value };
+    return { styles: selectedStyles, launchUploader: launchCheck.value, autoUpload: autoUploadCheck.value };
 }
 
 function exportFlattenedPNG(filename) {
@@ -164,6 +173,7 @@ if (!smartLayer) {
     } else {
     var selectedStyles = dialogResult.styles;
     var launchUploader = dialogResult.launchUploader;
+    var autoUpload = dialogResult.autoUpload;
 
     // Open Smart Object once
     mainDoc.activeLayer = smartLayer;
@@ -246,6 +256,7 @@ if (!smartLayer) {
             var handoff = new File("C:/Program Files/Moonbeam-Uploader/.launch_folder");
             handoff.open("w");
             handoff.write(folderPath);
+            if (autoUpload) handoff.write("\nauto_upload=true");
             handoff.close();
             app.system('start "" "C:\\Program Files\\Moonbeam-Uploader\\run_gui_windows.bat"');
         } else {
@@ -253,6 +264,7 @@ if (!smartLayer) {
             var handoff = new File("/Applications/Moonbeam-Uploader/.launch_folder");
             handoff.open("w");
             handoff.write(folderPath);
+            if (autoUpload) handoff.write("\nauto_upload=true");
             handoff.close();
             app.system('open "/Applications/Moonbeam-Uploader/run_gui_mac.command"');
         }

@@ -43,7 +43,7 @@ def configure_qt_environment() -> None:
 
 configure_qt_environment()
 
-from PySide6.QtCore import QPoint, QRect, QSize, QThread, Qt, Signal, QUrl
+from PySide6.QtCore import QPoint, QRect, QSize, QThread, Qt, Signal, QTimer, QUrl
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPalette, QPainter, QTextBlockFormat, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -1247,9 +1247,13 @@ class MainWindow(QMainWindow):
             handoff = BASE_DIR / ".launch_folder"
             if handoff.exists():
                 try:
-                    launch_folder = handoff.read_text(encoding="utf-8").strip()
+                    lines = handoff.read_text(encoding="utf-8").splitlines()
+                    launch_folder = lines[0].strip() if lines else ""
+                    auto_upload = len(lines) > 1 and lines[1].strip() == "auto_upload=true"
                     if launch_folder:
                         self.folder_edit.setText(launch_folder)
+                    if auto_upload:
+                        QTimer.singleShot(800, self.run_upload)
                 finally:
                     handoff.unlink(missing_ok=True)
         if map_path:
