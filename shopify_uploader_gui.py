@@ -1249,9 +1249,14 @@ class MainWindow(QMainWindow):
                 try:
                     lines = handoff.read_text(encoding="utf-8").splitlines()
                     launch_folder = lines[0].strip() if lines else ""
-                    auto_upload = len(lines) > 1 and lines[1].strip() == "auto_upload=true"
+                    auto_upload = any(l.strip() == "auto_upload=true" for l in lines)
+                    publish_active = any(l.strip() == "publish_active=true" for l in lines)
                     if launch_folder:
                         self.folder_edit.setText(launch_folder)
+                    if auto_upload:
+                        self.dry_run_check.setChecked(False)
+                    if publish_active:
+                        self.publish_status_check.setChecked(True)
                     if auto_upload:
                         QTimer.singleShot(800, self.run_upload)
                 finally:

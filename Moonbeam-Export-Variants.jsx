@@ -97,9 +97,22 @@ function showStyleSelectionDialog(styleNames) {
     autoUploadCheck.value = false;
     autoUploadCheck.enabled = false;
 
+    var publishActiveCheck = dialog.add("checkbox", undefined, "        \u2514 Publish as Active");
+    publishActiveCheck.value = false;
+    publishActiveCheck.enabled = false;
+
     launchCheck.onClick = function() {
         autoUploadCheck.enabled = launchCheck.value;
-        if (!launchCheck.value) autoUploadCheck.value = false;
+        if (!launchCheck.value) {
+            autoUploadCheck.value = false;
+            publishActiveCheck.value = false;
+            publishActiveCheck.enabled = false;
+        }
+    };
+
+    autoUploadCheck.onClick = function() {
+        publishActiveCheck.enabled = autoUploadCheck.value;
+        if (!autoUploadCheck.value) publishActiveCheck.value = false;
     };
 
     var buttonGroup = dialog.add("group");
@@ -129,7 +142,7 @@ function showStyleSelectionDialog(styleNames) {
     for (var i = 0; i < checkboxes.length; i++) {
         if (checkboxes[i].value) selectedStyles.push(styleNames[i]);
     }
-    return { styles: selectedStyles, launchUploader: launchCheck.value, autoUpload: autoUploadCheck.value };
+    return { styles: selectedStyles, launchUploader: launchCheck.value, autoUpload: autoUploadCheck.value, publishActive: publishActiveCheck.value };
 }
 
 function exportFlattenedPNG(filename) {
@@ -174,6 +187,7 @@ if (!smartLayer) {
     var selectedStyles = dialogResult.styles;
     var launchUploader = dialogResult.launchUploader;
     var autoUpload = dialogResult.autoUpload;
+    var publishActive = dialogResult.publishActive;
 
     // Open Smart Object once
     mainDoc.activeLayer = smartLayer;
@@ -255,6 +269,7 @@ if (!smartLayer) {
             handoff.open("w");
             handoff.write(folderPath);
             if (autoUpload) handoff.write("\nauto_upload=true");
+            if (publishActive) handoff.write("\npublish_active=true");
             handoff.close();
             app.system('start "" "C:\\Program Files\\Moonbeam-Uploader\\run_gui_windows.bat"');
         } else {
@@ -263,6 +278,7 @@ if (!smartLayer) {
             handoff.open("w");
             handoff.write(folderPath);
             if (autoUpload) handoff.write("\nauto_upload=true");
+            if (publishActive) handoff.write("\npublish_active=true");
             handoff.close();
             app.system('open "/Applications/Moonbeam-Uploader/run_gui_mac.command"');
         }
