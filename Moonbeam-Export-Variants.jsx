@@ -239,10 +239,21 @@ if (!smartLayer) {
 
     // Launch Moonbeam Uploader if the option was ticked
     if (launchUploader) {
+        var folderPath = exportFolder.fsName;
         var isWindows = ($.os.toLowerCase().indexOf("windows") >= 0);
         if (isWindows) {
+            // Write folder path to a handoff file, then launch
+            var handoff = new File("C:/Program Files/Moonbeam-Uploader/.launch_folder");
+            handoff.open("w");
+            handoff.write(folderPath);
+            handoff.close();
             app.system('start "" "C:\\Program Files\\Moonbeam-Uploader\\run_gui_windows.bat"');
         } else {
+            // Write folder path to a handoff file, then launch
+            var handoff = new File("/Applications/Moonbeam-Uploader/.launch_folder");
+            handoff.open("w");
+            handoff.write(folderPath);
+            handoff.close();
             app.system('open "/Applications/Moonbeam-Uploader/run_gui_mac.command"');
         }
     }

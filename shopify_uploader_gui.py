@@ -1242,6 +1242,16 @@ class MainWindow(QMainWindow):
         self._build_ui()
         if folder:
             self.folder_edit.setText(folder)
+        elif not folder:
+            # Check for a handoff file written by the Photoshop JSX script
+            handoff = BASE_DIR / ".launch_folder"
+            if handoff.exists():
+                try:
+                    launch_folder = handoff.read_text(encoding="utf-8").strip()
+                    if launch_folder:
+                        self.folder_edit.setText(launch_folder)
+                finally:
+                    handoff.unlink(missing_ok=True)
         if map_path:
             self.map_edit.setText(map_path)
         self.append_output(
