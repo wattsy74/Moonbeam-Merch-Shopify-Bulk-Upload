@@ -68,7 +68,7 @@ function detectArtworks(doc) {
 }
 
 function showStyleSelectionDialog(styleNames) {
-    var dialog = new Window("dialog", "Select styles to export", [100, 100, 420, 360]);
+    var dialog = new Window("dialog", "Select styles to export", [100, 100, 420, 390]);
     dialog.orientation = "column";
     dialog.alignChildren = "left";
     dialog.margins = 16;
@@ -88,6 +88,10 @@ function showStyleSelectionDialog(styleNames) {
         checkbox.value = true;
         checkboxes.push(checkbox);
     }
+
+    // ---- Launch uploader option ----
+    var launchCheck = dialog.add("checkbox", undefined, "Launch Moonbeam Uploader when export completes");
+    launchCheck.value = false;
 
     var buttonGroup = dialog.add("group");
     buttonGroup.alignment = "right";
@@ -110,13 +114,13 @@ function showStyleSelectionDialog(styleNames) {
     dialog.layout.resize();
     dialog.center();
     var result = dialog.show();
-    if (result != 1) return [];
+    if (result != 1) return null;
 
     var selectedStyles = [];
     for (var i = 0; i < checkboxes.length; i++) {
         if (checkboxes[i].value) selectedStyles.push(styleNames[i]);
     }
-    return selectedStyles;
+    return { styles: selectedStyles, launchUploader: launchCheck.value };
 }
 
 function exportFlattenedPNG(filename) {
@@ -154,10 +158,12 @@ if (!smartLayer) {
         }
     }
 
-    var selectedStyles = showStyleSelectionDialog(styles);
-    if (!selectedStyles || selectedStyles.length == 0) {
+    var dialogResult = showStyleSelectionDialog(styles);
+    if (!dialogResult || !dialogResult.styles || dialogResult.styles.length == 0) {
         alert("No styles selected. Export cancelled.");
     } else {
+    var selectedStyles = dialogResult.styles;
+    var launchUploader = dialogResult.launchUploader;
 
     // Open Smart Object once
     mainDoc.activeLayer = smartLayer;
@@ -230,5 +236,14 @@ if (!smartLayer) {
     }
 
     alert("All artwork + style + colour variants exported!");
+
+    // Launch Moonbeam Uploader if the option was ticked
+    if (launchUploader) {
+        var isWindows = ($.os.toLowerCase().indexOf("windows") >= 0);
+        if (isWindows) {
+            app.system('start "" "C:\\Program Files\\Moonbeam-Uploader\\run_gui_windows.bat"');
+        } else {
+            app.system('open "/Applications/Moonbeam-Uploader/run_gui_mac.command"');
+        }
     }
-}
+    }
