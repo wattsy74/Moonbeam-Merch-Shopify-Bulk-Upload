@@ -553,7 +553,9 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     style_size_prices = style_config.size_prices
 
     sku = f"{code_a}_{code_b}_{code_c}-{artwork_raw}-{color_raw}"
-    artwork_display = to_title_case(artwork_raw.replace("-", " ").strip())
+    # Split CamelCase artwork names (e.g. "SteamboatWillie" -> "Steamboat Willie")
+    artwork_spaced = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', artwork_raw)
+    artwork_display = to_title_case(artwork_spaced.replace("-", " ").strip())
     code_ab = f"{code_a}_{code_b}"
     color_display = format_color_label(color_raw)
 
