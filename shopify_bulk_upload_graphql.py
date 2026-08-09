@@ -618,7 +618,7 @@ class GraphQLShopifyClient:
           }
         }
         """
-        data = self._graphql(mutation, {"input": {"id": product_id, "category": {"productTaxonomyNodeId": category_gid}}})
+        data = self._graphql(mutation, {"input": {"id": product_id, "category": category_gid}})
         payload = data.get("productUpdate") or {}
         user_errors = payload.get("userErrors") or []
         if user_errors:
