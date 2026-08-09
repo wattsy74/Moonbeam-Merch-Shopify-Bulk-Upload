@@ -1395,16 +1395,6 @@ class MainWindow(QMainWindow):
         root = QWidget()
         layout = QVBoxLayout(root)
 
-        title = QLabel("Moonbeam Merch Uploader")
-        title.setStyleSheet("""
-            color: #0A1E3F;
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
-        """)
-        layout.addWidget(title)
-
         # ── Settings + image preview side-by-side ──────────────────────────────
         top_splitter = QSplitter(Qt.Horizontal)
 
