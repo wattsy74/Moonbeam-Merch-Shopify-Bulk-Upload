@@ -552,7 +552,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     style_sizes = style_config.sizes
     style_size_prices = style_config.size_prices
 
-    sku = f"{code_a}_{code_b}_{code_c}-{artwork_raw}-{color_raw}"
+    sku = f"{code_b}_{code_c}-{artwork_raw}-{color_raw}"
     # Split CamelCase artwork names (e.g. "SteamboatWillie" -> "Steamboat Willie")
     artwork_spaced = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', artwork_raw)
     artwork_display = to_title_case(artwork_spaced.replace("-", " ").strip())
@@ -780,7 +780,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
 def build_product_tags(images: List[ParsedImage]) -> str:
     tags: set[str] = set()
     tags.add(images[0].artwork_display)
-    tags.add(images[0].code_ab)
+    tags.add(images[0].code_ab.split("_", 1)[-1])  # drop prefix (e.g. PBM0_STTU169 -> STTU169)
     tags.add(images[0].style_label)
 
     for img in images:
