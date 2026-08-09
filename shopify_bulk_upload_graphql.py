@@ -14,10 +14,12 @@ from dotenv import load_dotenv
 from shopify_bulk_upload import (
     ParsedImage,
     build_groups,
+    build_paired_groups,
     build_product_tags,
     choose_title,
     collect_images,
     get_access_token,
+    load_pairings,
     load_product_type_map,
     make_body_html,
     move_uploaded_file,
@@ -1024,26 +1026,34 @@ def create_products(
                             print(f"  Note: Size linking failed: {exc}")
 
         print(f"  Created Shopify product ID: {numeric_product_id}")
+        # When a product has both front and back images, only front images are linked
+        # to variants (back images are uploaded as additional gallery images only).
+        has_front_images = any(img.position == "front" for img in images)
         for img in images:
             uploaded = rest_client.upload_product_image(
                 product_id=numeric_product_id,
                 file_path=img.file_path,
-                alt_text=f"{img.artwork_display} - {img.style_label} - {img.color_display}",
+                alt_text=f"{img.artwork_display} - {img.style_label} - {img.color_display} ({'back' if img.position == 'back' else 'front'})",
             )
             image_id = uploaded["id"]
-            if effective_sizes:
-                linked_variant_ids: List[int] = []
-                for size in effective_sizes:
-                    variant_id = variant_lookup.get((img.color_display, size))
+            # Link to variants unless this is a back image in a front+back product
+            link_to_variants = not (img.position == "back" and has_front_images)
+            if link_to_variants:
+                if effective_sizes:
+                    linked_variant_ids: List[int] = []
+                    for size in effective_sizes:
+                        variant_id = variant_lookup.get((img.color_display, size))
+                        if variant_id:
+                            rest_client.set_variant_image(variant_id=variant_id, image_id=image_id)
+                            linked_variant_ids.append(variant_id)
+                    if linked_variant_ids:
+                        print(f"  Image linkage summary: {img.file_path.name} -> variants {linked_variant_ids}")
+                else:
+                    variant_id = variant_lookup.get(img.color_display)
                     if variant_id:
                         rest_client.set_variant_image(variant_id=variant_id, image_id=image_id)
-                        linked_variant_ids.append(variant_id)
-                if linked_variant_ids:
-                    print(f"  Image linkage summary: {img.file_path.name} -> variants {linked_variant_ids}")
             else:
-                variant_id = variant_lookup.get(img.color_display)
-                if variant_id:
-                    rest_client.set_variant_image(variant_id=variant_id, image_id=image_id)
+                print(f"  Back image uploaded (gallery only): {img.file_path.name}")
             moved_to = move_uploaded_file(img.file_path, uploaded_dir)
             print(f"  Moved uploaded file -> '{moved_to}'")
 
@@ -1114,7 +1124,8 @@ def main() -> int:
     try:
         product_type_map = load_product_type_map(product_type_map_path)
         parsed_images = collect_images(folder, product_type_map, skip_dir=uploaded_dir)
-        groups = build_groups(parsed_images)
+        pairings = load_pairings(folder)
+        groups = build_paired_groups(parsed_images, pairings) if pairings else build_groups(parsed_images)
     except Exception as exc:
         print(f"Error while parsing folder: {exc}")
         return 1

@@ -24,6 +24,7 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
             style_sizes=["S", "M"],
             style_size_prices={"S": "24.99", "M": "24.99"},
             style_category=None,
+            position=None,
             color_raw="CottonPink",
             color_display="Cotton Pink",
         )
@@ -113,6 +114,7 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
             style_sizes=["S"],
             style_size_prices={"S": "24.99"},
             style_category=None,
+            position=None,
             color_raw="CottonPink",
             color_display="Cotton Pink",
         )
@@ -170,7 +172,7 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
         rest_client.upload_product_image.assert_called_once_with(
             product_id=123456,
             file_path=image_path,
-            alt_text="Jessie - Creator_2.0 - Cotton Pink",
+            alt_text="Jessie - Creator_2.0 - Cotton Pink (front)",
         )
 
 

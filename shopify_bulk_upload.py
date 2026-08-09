@@ -72,6 +72,7 @@ class ParsedImage:
     style_sizes: Optional[List[str]]
     style_size_prices: Optional[Dict[str, str]]
     style_category: Optional[str]
+    position: Optional[str]  # "front" | "back" | None
     color_raw: str
     color_display: str
 
@@ -561,6 +562,13 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     artwork_display = to_title_case(artwork_spaced.replace("-", " ").strip())
     code_ab = f"{code_a}_{code_b}"
     color_display = format_color_label(color_raw)
+    # Derive front/back position from code_a prefix (PFM* = front, PBM* = back)
+    if code_a.startswith("PF"):
+        position: Optional[str] = "front"
+    elif code_a.startswith("PB"):
+        position = "back"
+    else:
+        position = None
 
     return ParsedImage(
         file_path=file_path,
@@ -578,6 +586,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
         style_sizes=style_sizes,
         style_size_prices=style_size_prices,
         style_category=style_category,
+        position=position,
         color_raw=color_raw,
         color_display=color_display,
     )
@@ -651,8 +660,11 @@ def make_body_html(description: Optional[str]) -> str:
 
 
 def choose_title(images: List[ParsedImage]) -> str:
-    artwork = images[0].artwork_display
-    style = images[0].style_label
+    # Prefer front-position images for the product title (back images use a different artwork)
+    front_images = [img for img in images if img.position == "front"]
+    title_img = front_images[0] if front_images else images[0]
+    artwork = title_img.artwork_display
+    style = title_img.style_label
     return to_title_case(f"{artwork} {style}")
 
 
@@ -782,6 +794,65 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
         )
 
     return parsed
+
+
+def load_pairings(folder: Path) -> Optional[List[dict]]:
+    """Load front/back pairings written by the JSX export script, or None if absent."""
+    path = folder / "pairings.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("pairings") or None
+    except Exception:
+        return None
+
+
+def build_paired_groups(
+    images: List[ParsedImage],
+    pairings: List[dict],
+) -> Dict[Tuple[str, str], List[ParsedImage]]:
+    """Group images according to front/back pairings from pairings.json."""
+    groups: Dict[Tuple[str, str], List[ParsedImage]] = {}
+    assigned_ids: set = set()
+
+    for pairing in pairings:
+        style_code    = pairing.get("style_code", "")
+        front_artwork = pairing.get("front_artwork")
+        back_artwork  = pairing.get("back_artwork")
+        title_raw     = front_artwork or back_artwork
+        if not title_raw or not style_code:
+            continue
+
+        group_images: List[ParsedImage] = []
+        for img in images:
+            if img.style_code != style_code:
+                continue
+            is_front = front_artwork and img.artwork_raw == front_artwork and img.position == "front"
+            is_back  = back_artwork  and img.artwork_raw == back_artwork  and img.position == "back"
+            if is_front or is_back:
+                group_images.append(img)
+                assigned_ids.add(id(img))
+
+        if not group_images:
+            continue
+
+        artwork_spaced  = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', title_raw)
+        title_display   = to_title_case(artwork_spaced.replace("-", " ").strip())
+        style_label     = group_images[0].style_label
+        key             = (title_display, style_label)
+        if key not in groups:
+            groups[key] = []
+        groups[key].extend(group_images)
+
+    # Unassigned images fall back to default grouping
+    unassigned = [img for img in images if id(img) not in assigned_ids]
+    if unassigned:
+        for key, imgs in build_groups(unassigned).items():
+            if key not in groups:
+                groups[key] = []
+            groups[key].extend(imgs)
+
+    return groups
 
 
 def build_product_tags(images: List[ParsedImage]) -> str:
