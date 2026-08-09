@@ -1459,7 +1459,7 @@ class MainWindow(QMainWindow):
         top_splitter.addWidget(form_box)
 
         # ── Image preview panel ───────────────────────────────────────────────
-        preview_box = QGroupBox("Current Image")
+        preview_box = QGroupBox("")
         preview_layout = QVBoxLayout(preview_box)
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignCenter)
