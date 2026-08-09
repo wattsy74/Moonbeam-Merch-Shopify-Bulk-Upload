@@ -1465,18 +1465,14 @@ class MainWindow(QMainWindow):
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setMinimumSize(220, 220)
         self.image_label.setStyleSheet("background: #f3f4f6; border-radius: 6px;")
-        self.image_label.setText("No image yet")
-        self.image_name_label = QLabel()
-        self.image_name_label.setAlignment(Qt.AlignCenter)
-        self.image_name_label.setStyleSheet("color: #6b7280; font-size: 11px;")
-        self.image_name_label.setWordWrap(True)
         preview_layout.addWidget(self.image_label, 1)
-        preview_layout.addWidget(self.image_name_label)
         top_splitter.addWidget(preview_box)
 
         top_splitter.setStretchFactor(0, 2)
         top_splitter.setStretchFactor(1, 1)
         layout.addWidget(top_splitter)
+        # Show logo as placeholder
+        self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png")
 
         btns = QHBoxLayout()
         edit_map_btn = QPushButton("Edit Map")
@@ -1543,7 +1539,6 @@ class MainWindow(QMainWindow):
         scaled = pixmap.scaled(label_size.width() - 8, label_size.height() - 8,
                                Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.image_label.setPixmap(scaled)
-        self.image_name_label.setText(path.name)
 
     def clear_output(self):
         self.output.clear()
