@@ -852,8 +852,10 @@ def create_products(
         # Resolve Shopify taxonomy category GID (search term or direct GID from product map)
         category_gid: Optional[str] = None
         raw_category = images[0].style_category
-        if raw_category:
+        if raw_category and not dry_run:
             category_gid = graphql_client.resolve_taxonomy_category(raw_category)
+        elif raw_category:
+            category_gid = raw_category if raw_category.startswith("gid://") else f"({raw_category})"
         product_input = build_graphql_product_input(
             images=images,
             title=title,
@@ -888,6 +890,8 @@ def create_products(
         print(f"  Variants: {len(product_input['variants'])}")
         print(f"  Shopify status to set: {publish_status}")
         print(f"  Shopify vendor to set: {vendor or '(none)'}")
+        if raw_category:
+            print(f"  Shopify category: {raw_category}")
         option_summary = "Color swatches" if swatch_namespace and swatch_key else "Color"
         print("  Shopify options to set: " + option_summary + (", Size" if effective_sizes else ""))
 
