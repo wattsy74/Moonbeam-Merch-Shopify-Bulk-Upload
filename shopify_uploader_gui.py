@@ -1521,11 +1521,14 @@ class MainWindow(QMainWindow):
         """Parse output lines for image paths and update the preview panel."""
         import re as _re
         for line in text.splitlines():
+            # Reset to logo when a new product starts being created
+            if "Created Shopify product ID" in line:
+                self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png")
+                continue
             m = _re.search(r"Image linkage summary: (.+?) ->", line)
             if m:
                 folder = self.folder_edit.text().strip()
                 uploaded = self.uploaded_dir_edit.text().strip() or "uploaded"
-                # Look in the source folder first, then uploaded subfolder
                 for search_dir in [folder, str(Path(folder) / uploaded)]:
                     candidate = Path(search_dir) / m.group(1).strip()
                     if candidate.exists():
@@ -1643,10 +1646,12 @@ class MainWindow(QMainWindow):
     def on_done(self, code: int):
         self.append_output(f"\nProcess exited with code {code}\n")
         self.run_btn.setEnabled(True)
+        self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png")
 
     def on_failed(self, message: str):
         self.append_output(f"\nFailed to run uploader: {message}\n")
         self.run_btn.setEnabled(True)
+        self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png")
 
     def _clear_worker(self):
         if self.worker is not None:
