@@ -217,6 +217,7 @@ function showMatrixDialog(styleInfos, artworkNames) {
 
     var CHARS_LABEL = 26;  // statictext 'characters' width for row labels
     var COL_MIN_W   = 30;  // minimum pixel width for each column cell
+    var LABEL_PX    = 220; // fixed pixel width for the label column
     var ROW_H       = 22;
     var PAD         = 16;
 
@@ -232,6 +233,8 @@ function showMatrixDialog(styleInfos, artworkNames) {
     hdr.spacing = 2;
     var hdrLbl = hdr.add("statictext", undefined, "Style / Position");
     hdrLbl.characters = CHARS_LABEL;
+    hdrLbl.minimumSize = [LABEL_PX, ROW_H];
+    hdrLbl.maximumSize = [LABEL_PX, ROW_H];
     for (var a = 0; a < colLabels.length; a++) {
         var hcg = hdr.add("group");
         hcg.minimumSize = [COL_MIN_W, ROW_H];
@@ -253,6 +256,8 @@ function showMatrixDialog(styleInfos, artworkNames) {
             rg.spacing = 2;
             var rlbl = rg.add("statictext", undefined, rows[ri].label);
             rlbl.characters = CHARS_LABEL;
+            rlbl.minimumSize = [LABEL_PX, ROW_H];
+            rlbl.maximumSize = [LABEL_PX, ROW_H];
             for (var a = 0; a < artworkNames.length; a++) {
                 (function(ai) {
                     var cg = rg.add("group");
