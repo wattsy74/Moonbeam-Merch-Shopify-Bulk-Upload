@@ -52,6 +52,7 @@ class ProductTypeConfig:
     description: Optional[str]
     sizes: Optional[List[str]]
     size_prices: Optional[Dict[str, str]]
+    category: Optional[str]
 
 
 @dataclass
@@ -70,6 +71,7 @@ class ParsedImage:
     style_description: Optional[str]
     style_sizes: Optional[List[str]]
     style_size_prices: Optional[Dict[str, str]]
+    style_category: Optional[str]
     color_raw: str
     color_display: str
 
@@ -551,6 +553,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
     style_description = style_config.description
     style_sizes = style_config.sizes
     style_size_prices = style_config.size_prices
+    style_category = style_config.category
 
     sku = f"{code_b}_{code_c}-{artwork_raw}-{color_raw}"
     # Split CamelCase artwork names (e.g. "SteamboatWillie" -> "Steamboat Willie")
@@ -574,6 +577,7 @@ def parse_filename(file_path: Path, product_type_map: Dict[str, ProductTypeConfi
         style_description=style_description,
         style_sizes=style_sizes,
         style_size_prices=style_size_prices,
+        style_category=style_category,
         color_raw=color_raw,
         color_display=color_display,
     )
@@ -684,6 +688,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
                 description=None,
                 sizes=None,
                 size_prices=None,
+                category=None,
             )
             continue
 
@@ -700,6 +705,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
         description_file_raw = value.get("description_file", None)
         sizes_raw = value.get("sizes", None)
         size_prices_raw = value.get("size_prices", None)
+        category_raw = value.get("category", None)
         if not isinstance(label_raw, str) or not label_raw.strip():
             raise ValueError(f"Product type label for '{key}' must be a non-empty string")
         if not isinstance(price_raw, str) or not price_raw.strip():
@@ -772,6 +778,7 @@ def load_product_type_map(path: Path) -> Dict[str, ProductTypeConfig]:
             description=resolved_description,
             sizes=([s.strip() for s in sizes_raw.split(",") if s.strip()] if isinstance(sizes_raw, str) else None),
             size_prices=resolved_size_prices,
+            category=(category_raw.strip() if isinstance(category_raw, str) and category_raw.strip() else None),
         )
 
     return parsed

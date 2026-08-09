@@ -33,6 +33,46 @@ class GraphQLShopifyClient:
         self.base_url = f"https://{shop_domain}/admin/api/{api_version}"
         self.session = RestShopifyClient(shop_domain, access_token, api_version).session
         GraphQLShopifyClient._load_color_hex_map()
+        self._taxonomy_cache: Dict[str, Optional[str]] = {}
+
+    def resolve_taxonomy_category(self, category: str) -> Optional[str]:
+        """Resolve a category name or GID to a Shopify taxonomy GID.
+        If category already looks like a GID, return it directly.
+        Otherwise search the taxonomy and return the best match GID, or None."""
+        if not category:
+            return None
+        if category.startswith("gid://"):
+            return category
+        cache_key = category.lower().strip()
+        if cache_key in self._taxonomy_cache:
+            return self._taxonomy_cache[cache_key]
+        query = """
+        query SearchTaxonomy($search: String!) {
+          taxonomy {
+            categories(first: 10, search: $search) {
+              nodes {
+                id
+                name
+                fullName
+              }
+            }
+          }
+        }
+        """
+        try:
+            data = self._graphql(query, {"search": category})
+            nodes = (data.get("taxonomy") or {}).get("categories", {}).get("nodes") or []
+            gid = nodes[0]["id"] if nodes else None
+            if gid:
+                print(f"  Resolved category '{category}' -> {nodes[0].get('fullName', gid)}")
+            else:
+                print(f"  Warning: no taxonomy category found for '{category}'")
+            self._taxonomy_cache[cache_key] = gid
+            return gid
+        except Exception as exc:
+            print(f"  Warning: taxonomy lookup failed for '{category}': {exc}")
+            self._taxonomy_cache[cache_key] = None
+            return None
 
     def _request(self, method: str, endpoint: str, json_data: Optional[dict] = None) -> dict:
         url = f"{self.base_url}{endpoint}"
@@ -715,6 +755,7 @@ def build_graphql_product_input(
     size_namespace: Optional[str],
     size_key: Optional[str],
     use_swatches: bool,
+    category_gid: Optional[str] = None,
 ) -> dict:
     template_suffix = images[0].style_template_suffix
     product_type = images[0].style_product_type
@@ -780,6 +821,8 @@ def build_graphql_product_input(
         product_input["productType"] = product_type
     if publish_status:
         product_input["status"] = publish_status.upper()
+    if category_gid:
+        product_input["productCategory"] = {"productTaxonomyNodeId": category_gid}
     return product_input
 
 
@@ -806,6 +849,11 @@ def create_products(
         title = choose_title(images)
         tags = build_product_tags(images)
         use_swatches_enabled = bool(swatch_namespace and swatch_key)
+        # Resolve Shopify taxonomy category GID (search term or direct GID from product map)
+        category_gid: Optional[str] = None
+        raw_category = images[0].style_category
+        if raw_category:
+            category_gid = graphql_client.resolve_taxonomy_category(raw_category)
         product_input = build_graphql_product_input(
             images=images,
             title=title,
@@ -820,6 +868,7 @@ def create_products(
             size_namespace=size_namespace,
             size_key=size_key,
             use_swatches=use_swatches_enabled,
+            category_gid=category_gid,
         )
 
         effective_sizes = sizes if sizes is not None else images[0].style_sizes
@@ -864,6 +913,7 @@ def create_products(
                     price_override=price_override,
                     swatch_namespace=None, swatch_key=None,
                     size_namespace=size_namespace, size_key=size_key, use_swatches=False,
+                    category_gid=category_gid,
                 )
                 product = graphql_client.create_product(product_input)
             else:

@@ -23,6 +23,7 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
             style_description="Demo",
             style_sizes=["S", "M"],
             style_size_prices={"S": "24.99", "M": "24.99"},
+            style_category=None,
             color_raw="CottonPink",
             color_display="Cotton Pink",
         )
@@ -66,6 +67,7 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
                 description=None,
                 sizes=["0-6"],
                 size_prices={"0-6": "10.99"},
+                category=None,
             )
         }
 
@@ -110,6 +112,7 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
             style_description="Demo",
             style_sizes=["S"],
             style_size_prices={"S": "24.99"},
+            style_category=None,
             color_raw="CottonPink",
             color_display="Cotton Pink",
         )
