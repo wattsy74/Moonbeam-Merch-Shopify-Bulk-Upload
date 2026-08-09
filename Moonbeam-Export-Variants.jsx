@@ -209,44 +209,57 @@ function showMatrixDialog(styleInfos, artworkNames) {
     }
     if (rows.length == 0) { alert("No front/back positions detected."); return null; }
 
-    // Use single letters A/B/C... as column headers; full names shown in legend
+    // Single-letter column labels so columns stay narrow
     var colLabels = [];
     for (var a = 0; a < artworkNames.length; a++) {
         colLabels.push(artworkNames.length <= 26 ? String.fromCharCode(65 + a) : String(a + 1));
     }
 
-    var LABEL_W = 190, COL_W = 28, ROW_H = 22, HROW_H = 22, PAD = 16;
-    var gridW = LABEL_W + artworkNames.length * COL_W;
-    var gridH = HROW_H + rows.length * ROW_H + 10;
+    var CHARS_LABEL = 26;  // statictext 'characters' width for row labels
+    var COL_MIN_W   = 30;  // minimum pixel width for each column cell
+    var ROW_H       = 22;
+    var PAD         = 16;
 
     var dialog = new Window("dialog", "Front / Back Artwork Assignment");
     dialog.orientation = "column";
     dialog.alignChildren = ["fill", "top"];
     dialog.margins = [PAD, PAD, PAD, PAD];
-    dialog.spacing = 8;
+    dialog.spacing = 2;
 
-    // ---- Grid panel with absolute positioning for exact alignment ----
-    var gp = dialog.add("panel", [0, 0, gridW + PAD, gridH + PAD]);
-    gp.preferredSize = [gridW + PAD, gridH + PAD];
-
-    var baseY = 8;
-    gp.add("statictext", [4, baseY, LABEL_W, baseY + HROW_H], "Style / Position");
+    // ---- Header row ----
+    var hdr = dialog.add("group");
+    hdr.orientation = "row";
+    hdr.spacing = 2;
+    var hdrLbl = hdr.add("statictext", undefined, "Style / Position");
+    hdrLbl.characters = CHARS_LABEL;
     for (var a = 0; a < colLabels.length; a++) {
-        var hx = LABEL_W + a * COL_W;
-        var hl = gp.add("statictext", [hx, baseY, hx + COL_W, baseY + HROW_H], colLabels[a]);
-        hl.justify = "center";
+        var hcg = hdr.add("group");
+        hcg.minimumSize = [COL_MIN_W, ROW_H];
+        hcg.alignment = ["center", "top"];
+        var htxt = hcg.add("statictext", undefined, colLabels[a]);
+        htxt.justify = "center";
+        htxt.alignment = ["center", "center"];
     }
 
+    dialog.add("panel", [0, 0, 10, 1]);  // separator
+
+    // ---- Data rows ----
     var cbGrid = [];
     for (var r = 0; r < rows.length; r++) {
         (function(ri) {
             cbGrid.push([]);
-            var ry = baseY + HROW_H + 4 + ri * ROW_H;
-            gp.add("statictext", [4, ry + 3, LABEL_W - 2, ry + ROW_H], rows[ri].label);
+            var rg = dialog.add("group");
+            rg.orientation = "row";
+            rg.spacing = 2;
+            var rlbl = rg.add("statictext", undefined, rows[ri].label);
+            rlbl.characters = CHARS_LABEL;
             for (var a = 0; a < artworkNames.length; a++) {
                 (function(ai) {
-                    var cx = LABEL_W + ai * COL_W + Math.floor((COL_W - 14) / 2);
-                    var cb = gp.add("checkbox", [cx, ry + 4, cx + 14, ry + 18], "");
+                    var cg = rg.add("group");
+                    cg.minimumSize = [COL_MIN_W, ROW_H];
+                    cg.alignment = ["center", "top"];
+                    var cb = cg.add("checkbox", undefined, "");
+                    cb.alignment = ["center", "center"];
                     cbGrid[ri].push(cb);
                     cb.onClick = function() {
                         if (cb.value) {
@@ -260,12 +273,15 @@ function showMatrixDialog(styleInfos, artworkNames) {
         })(r);
     }
 
+    dialog.add("panel", [0, 0, 10, 1]);  // separator
+
     // ---- Legend ----
     var legendLines = [];
     for (var a = 0; a < artworkNames.length; a++) legendLines.push(colLabels[a] + " = " + artworkNames[a]);
-    dialog.add("statictext", undefined, legendLines.join("   "));
+    dialog.add("statictext", undefined, legendLines.join("     "));
 
-    dialog.add("panel", [0, 0, gridW + PAD, 1]);
+    dialog.add("panel", [0, 0, 10, 1]);
+
     var lo = addLaunchOptions(dialog);
     var bg = dialog.add("group"); bg.alignment = "right";
     var expBtn = bg.add("button", undefined, "Export");
