@@ -4,7 +4,7 @@
     "price": "24.99",
     "template_suffix": "clothing-template",
     "product_type": "T-Shirts",
-    "category": "T-Shirts",
+    "category": "gid://shopify/TaxonomyCategory/aa-1-13-8",
     "sizes": "S,M,L,XL,XXL",
     "size_prices": {
       "S": "24.99",
@@ -20,7 +20,7 @@
     "price": "24.99",
     "template_suffix": "clothing-template",
     "product_type": "T-Shirts",
-    "category": "T-Shirts",
+    "category": "gid://shopify/TaxonomyCategory/aa-1-13-8",
     "sizes": "S,M,L,XL,XXL",
     "size_prices": {
       "S": "24.99",
@@ -36,7 +36,7 @@
     "price": "14.99",
     "template_suffix": "clothing-template",
     "product_type": "T-Shirts",
-    "category": "Kids' T-Shirts",
+    "category": "gid://shopify/TaxonomyCategory/aa-1-25-9-7",
     "sizes": "3-4,5-6,7-8,9-11,12-13",
     "description_file": "descriptors/STTK184_tshirt_descriptor.html"
   },
@@ -45,7 +45,7 @@
     "price": "10.99",
     "template_suffix": "clothing-template",
     "product_type": "T-Shirts",
-    "category": "Baby Tops",
+    "category": "gid://shopify/TaxonomyCategory/aa-1-25-9-7",
     "sizes": "0-6,6-12,12-18,18-24,24-36",
     "description_file": "descriptors/STTB918_tshirt_descriptor.html"
   }
