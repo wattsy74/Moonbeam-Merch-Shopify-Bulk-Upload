@@ -608,6 +608,26 @@ class GraphQLShopifyClient:
         variants_result = payload.get("productVariants") or []
         return variants_result if isinstance(variants_result, list) else []
 
+    def update_product_category(self, product_id: str, category_gid: str) -> None:
+        """Set the Shopify standard taxonomy category on a product via productUpdate."""
+        mutation = """
+        mutation UpdateProductCategory($input: ProductInput!) {
+          productUpdate(input: $input) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        """
+        data = self._graphql(mutation, {"input": {"id": product_id, "productCategory": {"productTaxonomyNodeId": category_gid}}})
+        payload = data.get("productUpdate") or {}
+        user_errors = payload.get("userErrors") or []
+        if user_errors:
+            messages = "; ".join(
+                f"{','.join(map(str, e.get('field') or []))}: {e.get('message', 'Unknown error')}"
+                for e in user_errors
+            )
+            raise RuntimeError(f"Shopify productUpdate (category) failed: {messages}")
+
     def update_product_template(self, product_id: str, template_suffix: str) -> None:
         """Re-assert the template suffix on a product after creation."""
         mutation = """
@@ -821,8 +841,6 @@ def build_graphql_product_input(
         product_input["productType"] = product_type
     if publish_status:
         product_input["status"] = publish_status.upper()
-    if category_gid:
-        product_input["productCategory"] = {"productTaxonomyNodeId": category_gid}
     return product_input
 
 
@@ -1036,6 +1054,13 @@ def create_products(
                 graphql_client.update_product_template(product_gid, template_suffix)
             except Exception as exc:
                 print(f"  Note: template suffix re-assertion failed: {exc}")
+
+        # Set taxonomy category via productUpdate (not supported in productSet)
+        if category_gid and category_gid.startswith("gid://"):
+            try:
+                graphql_client.update_product_category(product_gid, category_gid)
+            except Exception as exc:
+                print(f"  Note: category update failed: {exc}")
 
         # Publish to Online Store channel if product was set to active
         if publish_status and publish_status.upper() == "ACTIVE":
