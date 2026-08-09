@@ -44,7 +44,7 @@ def configure_qt_environment() -> None:
 configure_qt_environment()
 
 from PySide6.QtCore import QPoint, QRect, QSize, QThread, Qt, Signal, QTimer, QUrl
-from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPalette, QPainter, QTextBlockFormat, QTextCursor
+from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPalette, QPainter, QPixmap, QTextBlockFormat, QTextCursor
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
@@ -68,6 +68,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QSplitter,
     QTabWidget,
     QTextEdit,
@@ -1404,6 +1405,9 @@ class MainWindow(QMainWindow):
         """)
         layout.addWidget(title)
 
+        # ── Settings + image preview side-by-side ──────────────────────────────
+        top_splitter = QSplitter(Qt.Horizontal)
+
         form_box = QGroupBox("Upload Settings")
         form = QGridLayout(form_box)
 
@@ -1452,7 +1456,27 @@ class MainWindow(QMainWindow):
 
         form.addWidget(self.dry_run_check, 9, 1)
         form.addWidget(self.publish_status_check, 10, 1)
-        layout.addWidget(form_box)
+        top_splitter.addWidget(form_box)
+
+        # ── Image preview panel ───────────────────────────────────────────────
+        preview_box = QGroupBox("Current Image")
+        preview_layout = QVBoxLayout(preview_box)
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setMinimumSize(220, 220)
+        self.image_label.setStyleSheet("background: #f3f4f6; border-radius: 6px;")
+        self.image_label.setText("No image yet")
+        self.image_name_label = QLabel()
+        self.image_name_label.setAlignment(Qt.AlignCenter)
+        self.image_name_label.setStyleSheet("color: #6b7280; font-size: 11px;")
+        self.image_name_label.setWordWrap(True)
+        preview_layout.addWidget(self.image_label, 1)
+        preview_layout.addWidget(self.image_name_label)
+        top_splitter.addWidget(preview_box)
+
+        top_splitter.setStretchFactor(0, 2)
+        top_splitter.setStretchFactor(1, 1)
+        layout.addWidget(top_splitter)
 
         btns = QHBoxLayout()
         edit_map_btn = QPushButton("Edit Map")
@@ -1494,6 +1518,32 @@ class MainWindow(QMainWindow):
         self.output.moveCursor(QTextCursor.End)
         self.output.insertPlainText(text)
         self.output.moveCursor(QTextCursor.End)
+        self._maybe_update_image_preview(text)
+
+    def _maybe_update_image_preview(self, text: str):
+        """Parse output lines for image paths and update the preview panel."""
+        import re as _re
+        for line in text.splitlines():
+            m = _re.search(r"Image linkage summary: (.+?) ->", line)
+            if m:
+                folder = self.folder_edit.text().strip()
+                uploaded = self.uploaded_dir_edit.text().strip() or "uploaded"
+                # Look in the source folder first, then uploaded subfolder
+                for search_dir in [folder, str(Path(folder) / uploaded)]:
+                    candidate = Path(search_dir) / m.group(1).strip()
+                    if candidate.exists():
+                        self._show_image(candidate)
+                        break
+
+    def _show_image(self, path: Path):
+        pixmap = QPixmap(str(path))
+        if pixmap.isNull():
+            return
+        label_size = self.image_label.size()
+        scaled = pixmap.scaled(label_size.width() - 8, label_size.height() - 8,
+                               Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.image_label.setPixmap(scaled)
+        self.image_name_label.setText(path.name)
 
     def clear_output(self):
         self.output.clear()
