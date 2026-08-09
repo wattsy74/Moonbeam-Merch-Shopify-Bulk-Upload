@@ -1464,7 +1464,7 @@ class MainWindow(QMainWindow):
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignCenter)
         self.image_label.setMinimumSize(220, 220)
-        self.image_label.setStyleSheet("background: #f3f4f6; border-radius: 6px;")
+        self.image_label.setStyleSheet("background: transparent;")
         preview_layout.addWidget(self.image_label, 1)
         top_splitter.addWidget(preview_box)
 
