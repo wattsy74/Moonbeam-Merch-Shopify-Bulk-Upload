@@ -80,7 +80,41 @@ from PySide6.QtWidgets import (
 BASE_DIR = Path(__file__).resolve().parent
 CLI_SCRIPT = BASE_DIR / "shopify_bulk_upload_graphql.py"
 DEFAULT_MAP_PATH = BASE_DIR / "product_type_map.json"
+SETTINGS_PATH = BASE_DIR / "settings.json"
 GUI_BUILD = "GUI_BUILD_2026-08-05_qt1"
+
+
+class AppSettings:
+    """Persistent user preferences stored in settings.json alongside the app."""
+
+    DEFAULTS = {
+        "swatch_namespace": "custom",
+        "swatch_key": "color-pattern",
+        "size_namespace": "custom",
+        "size_key": "size",
+        "vendor": "Moonbeam Merch",
+        "uploaded_dir": "uploaded",
+        "auto_clean_uploads": None,   # None=ask, True=always, False=never
+    }
+
+    def __init__(self):
+        for k, v in self.DEFAULTS.items():
+            setattr(self, k, v)
+
+    def load(self) -> "AppSettings":
+        if SETTINGS_PATH.exists():
+            try:
+                data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+                for k, v in data.items():
+                    if k in self.DEFAULTS:
+                        setattr(self, k, v)
+            except Exception:
+                pass
+        return self
+
+    def save(self) -> None:
+        data = {k: getattr(self, k) for k in self.DEFAULTS}
+        SETTINGS_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def quote_arg(value: str) -> str:
@@ -219,6 +253,68 @@ class _FlowLayout(QLayout):
             x = next_x
             line_height = max(line_height, item.sizeHint().height())
         return y + line_height - rect.y() + margins.bottom()
+
+
+class SettingsDialog(QDialog):
+    def __init__(self, settings: AppSettings, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.resize(480, 300)
+        self._settings = settings
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+
+        tabs = QTabWidget()
+
+        # ── Swatch & Size tab ──────────────────────────────────────────────────
+        swatch_widget = QWidget()
+        swatch_form = QFormLayout(swatch_widget)
+
+        self.swatch_namespace_edit = QLineEdit(self._settings.swatch_namespace)
+        self.swatch_key_edit = QLineEdit(self._settings.swatch_key)
+        self.size_namespace_edit = QLineEdit(self._settings.size_namespace)
+        self.size_key_edit = QLineEdit(self._settings.size_key)
+
+        swatch_form.addRow("Swatch Namespace", self.swatch_namespace_edit)
+        swatch_form.addRow("Swatch Key", self.swatch_key_edit)
+        swatch_form.addRow("Size Namespace", self.size_namespace_edit)
+        swatch_form.addRow("Size Key", self.size_key_edit)
+        tabs.addTab(swatch_widget, "Swatches & Sizes")
+
+        # ── Upload Behaviour tab ───────────────────────────────────────────────
+        behaviour_widget = QWidget()
+        behaviour_form = QFormLayout(behaviour_widget)
+
+        self.clean_combo = QComboBox()
+        self.clean_combo.addItems(["Ask each time", "Always clean", "Never clean"])
+        current = self._settings.auto_clean_uploads
+        self.clean_combo.setCurrentIndex(0 if current is None else (1 if current else 2))
+        behaviour_form.addRow("After upload, clean processed folder", self.clean_combo)
+        tabs.addTab(behaviour_widget, "Upload Behaviour")
+
+        layout.addWidget(tabs)
+
+        btns = QHBoxLayout()
+        btns.addStretch(1)
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self._save)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btns.addWidget(save_btn)
+        btns.addWidget(cancel_btn)
+        layout.addLayout(btns)
+
+    def _save(self):
+        self._settings.swatch_namespace = self.swatch_namespace_edit.text().strip()
+        self._settings.swatch_key = self.swatch_key_edit.text().strip()
+        self._settings.size_namespace = self.size_namespace_edit.text().strip()
+        self._settings.size_key = self.size_key_edit.text().strip()
+        idx = self.clean_combo.currentIndex()
+        self._settings.auto_clean_uploads = None if idx == 0 else (True if idx == 1 else False)
+        self._settings.save()
+        self.accept()
 
 
 class MapEditorDialog(QDialog):
@@ -1304,6 +1400,7 @@ class MainWindow(QMainWindow):
         self._apply_moonbeam_theme()
 
         self.worker: UploaderWorker | None = None
+        self.settings = AppSettings().load()
 
         self._build_ui()
         if folder:
@@ -1468,16 +1565,12 @@ class MainWindow(QMainWindow):
 
         self.folder_edit = QLineEdit()
         self.map_edit = QLineEdit(str(DEFAULT_MAP_PATH))
-        self.vendor_edit = QLineEdit("Moonbeam Merch")
+        self.vendor_edit = QLineEdit(self.settings.vendor)
         self.price_edit = QLineEdit()
         self.sizes_edit = QLineEdit()
         self.sizes_edit.setPlaceholderText("e.g. S,M,L,XL,XXL  or  Age 3-4,Age 5-6  or  500ML,1000ML")
-        self.swatch_namespace_edit = QLineEdit("custom")
-        self.swatch_key_edit = QLineEdit("color-pattern")
-        self.size_namespace_edit = QLineEdit("custom")
-        self.size_key_edit = QLineEdit("size")
         self.description_edit = QLineEdit()
-        self.uploaded_dir_edit = QLineEdit("uploaded")
+        self.uploaded_dir_edit = QLineEdit(self.settings.uploaded_dir)
         self.dry_run_check = QCheckBox("Dry Run")
         self.dry_run_check.setChecked(True)
         self.publish_status_check = QCheckBox("Publish as Active")
@@ -1491,26 +1584,8 @@ class MainWindow(QMainWindow):
         self._add_row(form, 5, "Description Override", self.description_edit)
         self._add_row(form, 6, "Uploaded Dir", self.uploaded_dir_edit)
 
-        self.advanced_toggle = QPushButton("▶  Advanced")
-        self.advanced_toggle.setCheckable(True)
-        self.advanced_toggle.setChecked(False)
-        self.advanced_toggle.setFlat(True)
-        self.advanced_toggle.setStyleSheet("text-align: left; padding: 2px;")
-        self.advanced_toggle.clicked.connect(self._toggle_advanced)
-        form.addWidget(self.advanced_toggle, 7, 0, 1, 3)
-
-        self.advanced_frame = QFrame()
-        self.advanced_frame.setVisible(False)
-        advanced_form = QGridLayout(self.advanced_frame)
-        advanced_form.setContentsMargins(16, 0, 0, 0)
-        self._add_row(advanced_form, 0, "Swatch Namespace", self.swatch_namespace_edit)
-        self._add_row(advanced_form, 1, "Swatch Key", self.swatch_key_edit)
-        self._add_row(advanced_form, 2, "Size Namespace", self.size_namespace_edit)
-        self._add_row(advanced_form, 3, "Size Key", self.size_key_edit)
-        form.addWidget(self.advanced_frame, 8, 0, 1, 3)
-
-        form.addWidget(self.dry_run_check, 9, 1)
-        form.addWidget(self.publish_status_check, 10, 1)
+        form.addWidget(self.dry_run_check, 7, 1)
+        form.addWidget(self.publish_status_check, 8, 1)
         top_splitter.addWidget(form_box)
 
         # ── Image preview panel ───────────────────────────────────────────────
@@ -1526,7 +1601,6 @@ class MainWindow(QMainWindow):
         top_splitter.setStretchFactor(0, 2)
         top_splitter.setStretchFactor(1, 1)
         layout.addWidget(top_splitter)
-        # Show logo as placeholder (after event loop starts so label has correct size)
         self._preview_pixmap: Optional[QPixmap] = None
         QTimer.singleShot(0, lambda: self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png"))
 
@@ -1540,10 +1614,14 @@ class MainWindow(QMainWindow):
         clear_btn = QPushButton("Clear Output")
         clear_btn.clicked.connect(self.clear_output)
 
+        settings_btn = QPushButton("⚙ Settings")
+        settings_btn.clicked.connect(self.open_settings)
+
         btns.addWidget(edit_map_btn)
         btns.addWidget(self.run_btn)
         btns.addWidget(clear_btn)
         btns.addStretch(1)
+        btns.addWidget(settings_btn)
         layout.addLayout(btns)
 
         self.output = QTextEdit()
@@ -1553,10 +1631,12 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(root)
 
-    def _toggle_advanced(self):
-        visible = self.advanced_toggle.isChecked()
-        self.advanced_frame.setVisible(visible)
-        self.advanced_toggle.setText(("\u25bc  Advanced" if visible else "\u25b6  Advanced"))
+    def open_settings(self):
+        dlg = SettingsDialog(self.settings, self)
+        if dlg.exec():
+            # Refresh fields that mirror settings
+            self.vendor_edit.setText(self.settings.vendor)
+            self.uploaded_dir_edit.setText(self.settings.uploaded_dir)
 
     def _add_row(self, form: QGridLayout, row: int, label: str, edit: QLineEdit, browse_fn=None):
         form.addWidget(QLabel(label), row, 0)
@@ -1664,19 +1744,19 @@ class MainWindow(QMainWindow):
         if sizes:
             cmd += ["--sizes", sizes]
 
-        swatch_namespace = self.swatch_namespace_edit.text().strip()
+        swatch_namespace = self.settings.swatch_namespace
         if swatch_namespace:
             cmd += ["--swatch-namespace", swatch_namespace]
 
-        swatch_key = self.swatch_key_edit.text().strip()
+        swatch_key = self.settings.swatch_key
         if swatch_key:
             cmd += ["--swatch-key", swatch_key]
 
-        size_namespace = self.size_namespace_edit.text().strip()
+        size_namespace = self.settings.size_namespace
         if size_namespace:
             cmd += ["--size-namespace", size_namespace]
 
-        size_key = self.size_key_edit.text().strip()
+        size_key = self.settings.size_key
         if size_key:
             cmd += ["--size-key", size_key]
 
@@ -1702,6 +1782,51 @@ class MainWindow(QMainWindow):
         self.append_output(f"\nProcess exited with code {code}\n")
         self.run_btn.setEnabled(True)
         self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png")
+        if code == 0 and not self.dry_run_check.isChecked():
+            self._offer_clean_uploads()
+
+    def _offer_clean_uploads(self):
+        folder = self.folder_edit.text().strip()
+        uploaded_dir = self.uploaded_dir_edit.text().strip() or "uploaded"
+        uploaded_path = Path(folder) / uploaded_dir
+        if not uploaded_path.exists() or not any(uploaded_path.iterdir()):
+            return
+
+        pref = self.settings.auto_clean_uploads
+        if pref is True:
+            self._do_clean_uploads(uploaded_path)
+            return
+        if pref is False:
+            return
+
+        # Ask the user
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle("Clean up uploaded files?")
+        dlg.setText(f"Delete {sum(1 for _ in uploaded_path.iterdir())} processed files from:\n{uploaded_path}")
+        dlg.setIcon(QMessageBox.Question)
+        yes_btn    = dlg.addButton("Yes",          QMessageBox.YesRole)
+        no_btn     = dlg.addButton("No",           QMessageBox.NoRole)
+        always_btn = dlg.addButton("Always",       QMessageBox.AcceptRole)
+        never_btn  = dlg.addButton("Never ask",    QMessageBox.RejectRole)
+        dlg.exec()
+        clicked = dlg.clickedButton()
+        if clicked == always_btn:
+            self.settings.auto_clean_uploads = True
+            self.settings.save()
+            self._do_clean_uploads(uploaded_path)
+        elif clicked == never_btn:
+            self.settings.auto_clean_uploads = False
+            self.settings.save()
+        elif clicked == yes_btn:
+            self._do_clean_uploads(uploaded_path)
+
+    def _do_clean_uploads(self, uploaded_path: Path):
+        count = 0
+        for f in list(uploaded_path.iterdir()):
+            if f.is_file():
+                f.unlink()
+                count += 1
+        self.append_output(f"Cleaned {count} file(s) from {uploaded_path}\n")
 
     def on_failed(self, message: str):
         self.append_output(f"\nFailed to run uploader: {message}\n")
