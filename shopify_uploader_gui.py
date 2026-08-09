@@ -1471,8 +1471,9 @@ class MainWindow(QMainWindow):
         top_splitter.setStretchFactor(0, 2)
         top_splitter.setStretchFactor(1, 1)
         layout.addWidget(top_splitter)
-        # Show logo as placeholder
-        self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png")
+        # Show logo as placeholder (after event loop starts so label has correct size)
+        self._preview_pixmap: Optional[QPixmap] = None
+        QTimer.singleShot(0, lambda: self._show_image(BASE_DIR / "Moonbeam-Merch-Logo-Blue-Transparent.png"))
 
         btns = QHBoxLayout()
         edit_map_btn = QPushButton("Edit Map")
@@ -1531,14 +1532,25 @@ class MainWindow(QMainWindow):
                         self._show_image(candidate)
                         break
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._rescale_preview()
+
+    def _rescale_preview(self):
+        if self._preview_pixmap and not self._preview_pixmap.isNull():
+            label_size = self.image_label.size()
+            scaled = self._preview_pixmap.scaled(
+                label_size.width() - 8, label_size.height() - 8,
+                Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            self.image_label.setPixmap(scaled)
+
     def _show_image(self, path: Path):
         pixmap = QPixmap(str(path))
         if pixmap.isNull():
             return
-        label_size = self.image_label.size()
-        scaled = pixmap.scaled(label_size.width() - 8, label_size.height() - 8,
-                               Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.image_label.setPixmap(scaled)
+        self._preview_pixmap = pixmap
+        self._rescale_preview()
 
     def clear_output(self):
         self.output.clear()
