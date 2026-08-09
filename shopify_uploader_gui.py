@@ -390,6 +390,16 @@ class MapEditorDialog(QDialog):
         self.size_prices_map_edit = QLineEdit()
         self.size_prices_map_edit.setPlaceholderText("e.g. S:24.99, M:24.99, XL:26.99 or 500ML:14.99, 1000ML:19.99")
 
+        category_row = QHBoxLayout()
+        self.category_edit = QLineEdit()
+        self.category_edit.setPlaceholderText("Search term or gid://shopify/TaxonomyCategory/...")
+        category_lookup_btn = QPushButton("Lookup")
+        category_lookup_btn.clicked.connect(self._lookup_category)
+        category_row.addWidget(self.category_edit, 1)
+        category_row.addWidget(category_lookup_btn)
+        category_row_widget = QWidget()
+        category_row_widget.setLayout(category_row)
+
         desc_file_row = QHBoxLayout()
         self.desc_file_edit = QLineEdit()
         desc_browse = QPushButton("Browse")
@@ -408,6 +418,7 @@ class MapEditorDialog(QDialog):
         form.addRow("product_type", self.product_type_edit)
         form.addRow("sizes", self.sizes_map_edit)
         form.addRow("size_prices", self.size_prices_map_edit)
+        form.addRow("category", category_row_widget)
 
         desc_file_wrap = QWidget()
         desc_file_wrap.setLayout(desc_file_row)
@@ -420,6 +431,52 @@ class MapEditorDialog(QDialog):
         split.setSizes([280, 820])
 
         layout.addWidget(split, 1)
+
+    def _lookup_category(self):
+        """Search Shopify taxonomy and let user pick a category."""
+        search_term, ok = QInputDialog.getText(
+            self, "Category Lookup", "Enter a search term (e.g. T-Shirts, Kids, Baby):",
+            text=self.category_edit.text().strip()
+        )
+        if not ok or not search_term.strip():
+            return
+
+        import os, requests as _req
+        from dotenv import load_dotenv as _lde
+        _lde(dotenv_path=BASE_DIR / ".env")
+        shop = os.getenv("SHOPIFY_SHOP_DOMAIN")
+        token = os.getenv("SHOPIFY_ACCESS_TOKEN")
+        version = os.getenv("SHOPIFY_API_VERSION", "2026-07")
+
+        if not shop or not token:
+            QMessageBox.warning(self, "Not configured", "SHOPIFY_SHOP_DOMAIN and SHOPIFY_ACCESS_TOKEN must be set in .env")
+            return
+
+        try:
+            session = _req.Session()
+            session.headers.update({"X-Shopify-Access-Token": token, "Content-Type": "application/json"})
+            query = """query($search: String!) {
+              taxonomy { categories(first: 10, search: $search) { nodes { id fullName } } }
+            }"""
+            r = session.post(
+                f"https://{shop}/admin/api/{version}/graphql.json",
+                json={"query": query, "variables": {"search": search_term.strip()}},
+                timeout=15
+            )
+            nodes = r.json().get("data", {}).get("taxonomy", {}).get("categories", {}).get("nodes", [])
+        except Exception as exc:
+            QMessageBox.critical(self, "Lookup failed", str(exc))
+            return
+
+        if not nodes:
+            QMessageBox.information(self, "No results", f"No taxonomy categories found for '{search_term}'.")
+            return
+
+        items = [f"{n['fullName']}" for n in nodes]
+        item, ok = QInputDialog.getItem(self, "Select Category", "Choose a category:", items, 0, False)
+        if ok and item:
+            gid = nodes[items.index(item)]["id"]
+            self.category_edit.setText(gid)
 
     def browse_map(self):
         path, _ = QFileDialog.getOpenFileName(self, "Select product_type_map.json", str(BASE_DIR), "JSON (*.json);;All files (*)")
@@ -1045,6 +1102,7 @@ class MapEditorDialog(QDialog):
         self.product_type_edit.setText(entry["product_type"])
         self.sizes_map_edit.setText(entry["sizes"])
         self.size_prices_map_edit.setText(entry["size_prices"])
+        self.category_edit.setText(entry["category"])
         self.desc_file_edit.setText(entry["description_file"])
         if entry["description_file"]:
             self._load_description_file(entry["description_file"])
@@ -1060,6 +1118,7 @@ class MapEditorDialog(QDialog):
         self.product_type_edit.clear()
         self.sizes_map_edit.clear()
         self.size_prices_map_edit.clear()
+        self.category_edit.clear()
         self.desc_file_edit.clear()
         self._description_source_path = None
         self._set_description_content("")
@@ -1075,6 +1134,7 @@ class MapEditorDialog(QDialog):
         size_prices_text = self.size_prices_map_edit.text().strip()
         description_file = self.desc_file_edit.text().strip()
         description = self.description_source_edit.toPlainText().strip()
+        category = self.category_edit.text().strip()
 
         if not style_code:
             QMessageBox.warning(self, "Missing style_code", "style_code is required")
@@ -1099,6 +1159,8 @@ class MapEditorDialog(QDialog):
             except ValueError as exc:
                 QMessageBox.warning(self, "Invalid size_prices", str(exc))
                 return False
+        if category:
+            entry["category"] = category
 
         if description_file:
             target_path = self._resolve_description_path(description_file)
@@ -1136,6 +1198,7 @@ class MapEditorDialog(QDialog):
                 "size_prices": "",
                 "description_file": "",
                 "description": "",
+                "category": "",
             }
         if not isinstance(value, dict):
             return {
@@ -1147,6 +1210,7 @@ class MapEditorDialog(QDialog):
                 "size_prices": "",
                 "description_file": "",
                 "description": "",
+                "category": "",
             }
         return {
             "label": str(value.get("label", "")),
@@ -1157,6 +1221,7 @@ class MapEditorDialog(QDialog):
             "size_prices": self._format_size_prices_map(value.get("size_prices", {})),
             "description_file": str(value.get("description_file", "") or ""),
             "description": str(value.get("description", "") or ""),
+            "category": str(value.get("category", "") or ""),
         }
 
     def load_map(self):
