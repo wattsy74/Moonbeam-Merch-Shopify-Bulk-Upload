@@ -137,6 +137,29 @@ function getStyleDisplayName(folderName) {
     return n;
 }
 
+// ---- JSON serialiser (ExtendScript has no built-in JSON) ----
+function jsonStringify(val, indent) {
+    indent = indent || "";
+    var next = indent + "  ";
+    if (val === null || val === undefined) return "null";
+    if (val === true)  return "true";
+    if (val === false) return "false";
+    var t = typeof val;
+    if (t === "number") return String(val);
+    if (t === "string") return '"' + val.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n") + '"';
+    if (val instanceof Array) {
+        var items = [];
+        for (var i = 0; i < val.length; i++) items.push(next + jsonStringify(val[i], next));
+        return items.length ? "[\n" + items.join(",\n") + "\n" + indent + "]" : "[]";
+    }
+    if (t === "object") {
+        var pairs = [];
+        for (var k in val) { if (val[k] !== undefined) pairs.push(next + '"' + k + '": ' + jsonStringify(val[k], next)); }
+        return pairs.length ? "{\n" + pairs.join(",\n") + "\n" + indent + "}" : "{}";
+    }
+    return '"' + String(val) + '"';
+}
+
 // ---- LAUNCH UPLOADER HELPER ----
 function launchUploaderWithFolder(folderPath, autoUpload, publishActive) {
     var isWin = ($.os.toLowerCase().indexOf("windows") >= 0);
@@ -434,7 +457,7 @@ if (!smartLayer) {
                 pdata.pairings.push({ style_code: sa2.styleCode, front_artwork: sa2.frontArtwork, back_artwork: sa2.backArtwork });
             }
             var pf = new File(exportFolder + "/pairings.json");
-            pf.open("w"); pf.write(JSON.stringify(pdata, null, 2)); pf.close();
+            pf.open("w"); pf.write(jsonStringify(pdata, "")); pf.close();
 
             if (matrixResult.launchUploader) launchUploaderWithFolder(exportFolder.fsName, matrixResult.autoUpload, matrixResult.publishActive);
         }
