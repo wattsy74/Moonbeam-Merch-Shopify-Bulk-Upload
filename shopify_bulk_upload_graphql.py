@@ -610,6 +610,29 @@ class GraphQLShopifyClient:
         variants_result = payload.get("productVariants") or []
         return variants_result if isinstance(variants_result, list) else []
 
+        def append_media_to_variants(self, product_id: str, variant_media: List[dict]) -> None:
+                """Attach existing product media to specific variants."""
+                if not variant_media:
+                        return
+
+                mutation = """
+                mutation AppendMediaToVariants($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+                    productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+                        product { id }
+                        userErrors { field message }
+                    }
+                }
+                """
+                data = self._graphql(mutation, {"productId": product_id, "variantMedia": variant_media})
+                payload = data.get("productVariantAppendMedia") or {}
+                user_errors = payload.get("userErrors") or []
+                if user_errors:
+                        messages = "; ".join(
+                                f"{','.join(map(str, e.get('field') or []))}: {e.get('message', 'Unknown error')}"
+                                for e in user_errors
+                        )
+                        raise RuntimeError(f"Shopify productVariantAppendMedia failed: {messages}")
+
     def update_product_category(self, product_id: str, category_gid: str) -> None:
         """Set the Shopify standard taxonomy category on a product via productUpdate."""
         mutation = """
@@ -763,6 +786,29 @@ def gid_to_numeric_id(gid: object) -> int:
     return int(match.group(1))
 
 
+def _canonical_images_by_color(images: List[ParsedImage]) -> List[ParsedImage]:
+    """Choose one image per color for variant rows, preferring front artwork when present."""
+    by_color: Dict[str, List[ParsedImage]] = {}
+    for img in images:
+        by_color.setdefault(img.color_display, []).append(img)
+
+    canonical: List[ParsedImage] = []
+    for color in sorted(by_color.keys(), key=lambda value: value.lower()):
+        color_images = by_color[color]
+        front = next((item for item in color_images if item.position == "front"), None)
+        canonical.append(front if front else color_images[0])
+    return canonical
+
+
+def _media_gid(uploaded: dict) -> Optional[str]:
+    if uploaded.get("admin_graphql_api_id"):
+        return str(uploaded["admin_graphql_api_id"])
+    image_id = uploaded.get("id")
+    if image_id is None:
+        return None
+    return f"gid://shopify/MediaImage/{image_id}"
+
+
 def build_graphql_product_input(
     images: List[ParsedImage],
     title: str,
@@ -806,7 +852,8 @@ def build_graphql_product_input(
         product_options.append({"name": "Size", "position": 2, "values": [{"name": size} for size in effective_sizes]})
 
     variants = []
-    for img in sorted(images, key=lambda item: item.color_display):
+    variant_images = _canonical_images_by_color(images)
+    for img in variant_images:
         if effective_sizes:
             for size in effective_sizes:
                 variants.append(
@@ -946,6 +993,7 @@ def create_products(
         product_gid = str(product.get("id") or "")
         numeric_product_id = gid_to_numeric_id(product_gid)
         variant_lookup: Dict[object, int] = {}
+        variant_gid_lookup: Dict[object, str] = {}
         for variant in (product.get("variants") or {}).get("nodes") or []:
             variant_id = str(variant.get("id", ""))
             m = re.search(r"(\d+)$", variant_id)
@@ -955,10 +1003,12 @@ def create_products(
                 key = tuple(str(i.get("value", "")).strip() for i in selected)
                 if len(key) == 2 and numeric_variant_id is not None:
                     variant_lookup[key] = numeric_variant_id
+                    variant_gid_lookup[key] = variant_id
             else:
                 key = next((str(i.get("value", "")).strip() for i in selected if i.get("name") == "Color"), "")
                 if key and numeric_variant_id is not None:
                     variant_lookup[key] = numeric_variant_id
+                    variant_gid_lookup[key] = variant_id
 
         # --- STEP 2: Attempt to link options to metafields via productOptionUpdate ---
         # We resolve metaobject GIDs and try linking after the product exists.
@@ -1029,6 +1079,7 @@ def create_products(
         # When a product has both front and back images, only front images are linked
         # to variants (back images are uploaded as additional gallery images only).
         has_front_images = any(img.position == "front" for img in images)
+        variant_media_payload: List[dict] = []
         for img in images:
             uploaded = rest_client.upload_product_image(
                 product_id=numeric_product_id,
@@ -1036,6 +1087,20 @@ def create_products(
                 alt_text=f"{img.artwork_display} - {img.style_label} - {img.color_display} ({'back' if img.position == 'back' else 'front'})",
             )
             image_id = uploaded["id"]
+            media_gid = _media_gid(uploaded)
+            matching_variant_gids: List[str] = []
+            if effective_sizes:
+                for size in effective_sizes:
+                    variant_gid = variant_gid_lookup.get((img.color_display, size))
+                    if variant_gid:
+                        matching_variant_gids.append(variant_gid)
+            else:
+                variant_gid = variant_gid_lookup.get(img.color_display)
+                if variant_gid:
+                    matching_variant_gids.append(variant_gid)
+            if media_gid:
+                for variant_gid in matching_variant_gids:
+                    variant_media_payload.append({"variantId": variant_gid, "mediaIds": [media_gid]})
             # Link to variants unless this is a back image in a front+back product
             link_to_variants = not (img.position == "back" and has_front_images)
             if link_to_variants:
@@ -1053,9 +1118,16 @@ def create_products(
                     if variant_id:
                         rest_client.set_variant_image(variant_id=variant_id, image_id=image_id)
             else:
-                print(f"  Back image uploaded (gallery only): {img.file_path.name}")
+                print(f"  Back image uploaded: {img.file_path.name}")
             moved_to = move_uploaded_file(img.file_path, uploaded_dir)
             print(f"  Moved uploaded file -> '{moved_to}'")
+
+        if variant_media_payload:
+            try:
+                graphql_client.append_media_to_variants(product_gid, variant_media_payload)
+                print(f"  Associated uploaded media to matching variants: {len(variant_media_payload)} link(s)")
+            except Exception as exc:
+                print(f"  Note: variant media association failed: {exc}")
 
         # Re-assert template suffix after all mutations (productOptionUpdate can cause it to drop)
         template_suffix = product_input.get("templateSuffix")

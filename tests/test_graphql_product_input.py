@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import shopify_bulk_upload_graphql_swatches as swatches_module
 from shopify_bulk_upload import ParsedImage, ProductTypeConfig, parse_filename
 from shopify_bulk_upload_graphql import GraphQLShopifyClient, build_graphql_product_input, create_products
 
@@ -78,6 +79,127 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
         self.assertNotEqual(white_image.sku, black_image.sku)
         self.assertIn("White", white_image.sku)
         self.assertIn("Black", black_image.sku)
+
+    def test_build_graphql_product_input_dedupes_front_back_same_color_variants(self):
+        front_image = ParsedImage(
+            file_path=Path("/tmp/front.png"),
+            artwork_raw="SteamboatWillieBilly",
+            artwork_display="Steamboat Willie Billy",
+            code_ab="PFM0_STTW079",
+            code_c="C002",
+            sku="STTW079_C002-SteamboatWillieBilly-Black",
+            style_code="STTW079",
+            style_label="Ladies Fitted T-Shirt",
+            style_price="24.99",
+            style_template_suffix="clothing-template",
+            style_product_type="T-Shirts",
+            style_description="Demo",
+            style_sizes=["S", "M"],
+            style_size_prices={"S": "24.99", "M": "24.99"},
+            style_category=None,
+            position="front",
+            color_raw="Black",
+            color_display="Black",
+        )
+        back_image = ParsedImage(
+            file_path=Path("/tmp/back.png"),
+            artwork_raw="SteamboatWillieTeddy",
+            artwork_display="Steamboat Willie Teddy",
+            code_ab="PBM0_STTW079",
+            code_c="C002",
+            sku="STTW079_C002-SteamboatWillieTeddy-Black",
+            style_code="STTW079",
+            style_label="Ladies Fitted T-Shirt",
+            style_price="24.99",
+            style_template_suffix="clothing-template",
+            style_product_type="T-Shirts",
+            style_description="Demo",
+            style_sizes=["S", "M"],
+            style_size_prices={"S": "24.99", "M": "24.99"},
+            style_category=None,
+            position="back",
+            color_raw="Black",
+            color_display="Black",
+        )
+
+        payload = build_graphql_product_input(
+            images=[front_image, back_image],
+            title="Steamboat Willie Billy Ladies Fitted T-Shirt",
+            description=None,
+            vendor="Moonbeam Merch",
+            tags="Demo",
+            publish_status="draft",
+            sizes=["S", "M"],
+            price_override=None,
+            swatch_namespace="custom",
+            swatch_key="color-pattern",
+            size_namespace="custom",
+            size_key="size",
+            use_swatches=True,
+        )
+
+        self.assertEqual(len(payload["variants"]), 2)
+        self.assertEqual(payload["variants"][0]["sku"], "STTW079_C002-SteamboatWillieBilly-Black-S")
+        self.assertEqual(payload["variants"][1]["sku"], "STTW079_C002-SteamboatWillieBilly-Black-M")
+
+    def test_build_swatches_graphql_product_input_dedupes_front_back_same_color_variants(self):
+        front_image = ParsedImage(
+            file_path=Path("/tmp/front.png"),
+            artwork_raw="SteamboatWillieBilly",
+            artwork_display="Steamboat Willie Billy",
+            code_ab="PFM0_STTW079",
+            code_c="C002",
+            sku="STTW079_C002-SteamboatWillieBilly-Black",
+            style_code="STTW079",
+            style_label="Ladies Fitted T-Shirt",
+            style_price="24.99",
+            style_template_suffix="clothing-template",
+            style_product_type="T-Shirts",
+            style_description="Demo",
+            style_sizes=["S", "M"],
+            style_size_prices={"S": "24.99", "M": "24.99"},
+            style_category=None,
+            position="front",
+            color_raw="Black",
+            color_display="Black",
+        )
+        back_image = ParsedImage(
+            file_path=Path("/tmp/back.png"),
+            artwork_raw="SteamboatWillieTeddy",
+            artwork_display="Steamboat Willie Teddy",
+            code_ab="PBM0_STTW079",
+            code_c="C002",
+            sku="STTW079_C002-SteamboatWillieTeddy-Black",
+            style_code="STTW079",
+            style_label="Ladies Fitted T-Shirt",
+            style_price="24.99",
+            style_template_suffix="clothing-template",
+            style_product_type="T-Shirts",
+            style_description="Demo",
+            style_sizes=["S", "M"],
+            style_size_prices={"S": "24.99", "M": "24.99"},
+            style_category=None,
+            position="back",
+            color_raw="Black",
+            color_display="Black",
+        )
+
+        payload = swatches_module.build_graphql_product_input(
+            images=[front_image, back_image],
+            title="Steamboat Willie Billy Ladies Fitted T-Shirt",
+            description=None,
+            vendor="Moonbeam Merch",
+            tags="Demo",
+            publish_status="draft",
+            sizes=["S", "M"],
+            price_override=None,
+            swatch_namespace="shopify",
+            swatch_key="color-pattern",
+        )
+
+        self.assertEqual(len(payload["variants"]), 2)
+        self.assertEqual(payload["variants"][0]["inventoryItem"]["sku"], "STTW079_C002-SteamboatWillieBilly-Black-S")
+        self.assertEqual(payload["variants"][1]["inventoryItem"]["sku"], "STTW079_C002-SteamboatWillieBilly-Black-M")
 
     def test_option_value_link_targets_use_storefront_access_only(self):
         client = GraphQLShopifyClient.__new__(GraphQLShopifyClient)
@@ -173,6 +295,125 @@ class BuildGraphQLProductInputTests(unittest.TestCase):
             product_id=123456,
             file_path=image_path,
             alt_text="Jessie - Creator_2.0 - Cotton Pink (front)",
+        )
+
+    def test_create_products_appends_media_only_to_matching_color_variants(self):
+        front_path = Path("/tmp/front-black.png")
+        back_path = Path("/tmp/back-black.png")
+        front_path.write_bytes(b"front")
+        back_path.write_bytes(b"back")
+
+        front_image = ParsedImage(
+            file_path=front_path,
+            artwork_raw="SteamboatWillieBilly",
+            artwork_display="Steamboat Willie Billy",
+            code_ab="PFM0_STTW079",
+            code_c="C002",
+            sku="STTW079_C002-SteamboatWillieBilly-Black",
+            style_code="STTW079",
+            style_label="Ladies Fitted T-Shirt",
+            style_price="24.99",
+            style_template_suffix="clothing-template",
+            style_product_type="T-Shirts",
+            style_description="Demo",
+            style_sizes=["S", "M"],
+            style_size_prices={"S": "24.99", "M": "24.99"},
+            style_category=None,
+            position="front",
+            color_raw="Black",
+            color_display="Black",
+        )
+        back_image = ParsedImage(
+            file_path=back_path,
+            artwork_raw="SteamboatWillieTeddy",
+            artwork_display="Steamboat Willie Teddy",
+            code_ab="PBM0_STTW079",
+            code_c="C002",
+            sku="STTW079_C002-SteamboatWillieTeddy-Black",
+            style_code="STTW079",
+            style_label="Ladies Fitted T-Shirt",
+            style_price="24.99",
+            style_template_suffix="clothing-template",
+            style_product_type="T-Shirts",
+            style_description="Demo",
+            style_sizes=["S", "M"],
+            style_size_prices={"S": "24.99", "M": "24.99"},
+            style_category=None,
+            position="back",
+            color_raw="Black",
+            color_display="Black",
+        )
+
+        graphql_client = Mock()
+        graphql_client.create_product.return_value = {
+            "id": "gid://shopify/Product/123456",
+            "options": [
+                {"id": "gid://shopify/ProductOption/1", "name": "Color", "optionValues": [{"id": "gid://shopify/ProductOptionValue/10", "name": "Black"}]},
+                {"id": "gid://shopify/ProductOption/2", "name": "Size", "optionValues": [{"id": "gid://shopify/ProductOptionValue/20", "name": "S"}, {"id": "gid://shopify/ProductOptionValue/21", "name": "M"}]},
+            ],
+            "variants": {
+                "nodes": [
+                    {"id": "gid://shopify/ProductVariant/901", "selectedOptions": [{"name": "Color", "value": "Black"}, {"name": "Size", "value": "S"}]},
+                    {"id": "gid://shopify/ProductVariant/902", "selectedOptions": [{"name": "Color", "value": "Black"}, {"name": "Size", "value": "M"}]},
+                ]
+            },
+        }
+        graphql_client.ensure_option_value_link_targets.side_effect = [{}, {}]
+        graphql_client.append_media_to_variants.return_value = None
+
+        rest_client = Mock()
+        rest_client.upload_product_image.side_effect = [
+            {"id": 987, "admin_graphql_api_id": "gid://shopify/MediaImage/987"},
+            {"id": 988, "admin_graphql_api_id": "gid://shopify/MediaImage/988"},
+        ]
+        rest_client.set_variant_image.return_value = {}
+
+        with patch("shopify_bulk_upload_graphql.build_product_tags", return_value="Demo"), \
+             patch("shopify_bulk_upload_graphql.choose_title", return_value="Demo"), \
+             patch("shopify_bulk_upload_graphql.move_uploaded_file", side_effect=[str(front_path), str(back_path)]), \
+             patch("shopify_bulk_upload_graphql.build_graphql_product_input") as build_input:
+            build_input.return_value = {
+                "title": "Demo",
+                "descriptionHtml": "Demo",
+                "productOptions": [
+                    {"name": "Color", "values": [{"name": "Black"}]},
+                    {"name": "Size", "values": [{"name": "S"}, {"name": "M"}]},
+                ],
+                "variants": [
+                    {"optionValues": [{"optionName": "Color", "name": "Black"}, {"optionName": "Size", "name": "S"}], "sku": "demo-s", "price": "24.99"},
+                    {"optionValues": [{"optionName": "Color", "name": "Black"}, {"optionName": "Size", "name": "M"}], "sku": "demo-m", "price": "24.99"},
+                ],
+                "tags": "Demo",
+                "templateSuffix": "clothing-template",
+                "productType": "T-Shirts",
+                "status": "DRAFT",
+            }
+
+            create_products(
+                graphql_client=graphql_client,
+                rest_client=rest_client,
+                groups={("Steamboat Willie Billy", "Ladies Fitted T-Shirt"): [front_image, back_image]},
+                description=None,
+                price_override=None,
+                vendor="Moonbeam Merch",
+                uploaded_dir=Path("/tmp"),
+                dry_run=False,
+                publish_status="draft",
+                sizes=["S", "M"],
+                swatch_namespace="custom",
+                swatch_key="color-pattern",
+                size_namespace="custom",
+                size_key="size",
+            )
+
+        graphql_client.append_media_to_variants.assert_called_once_with(
+            "gid://shopify/Product/123456",
+            [
+                {"variantId": "gid://shopify/ProductVariant/901", "mediaIds": ["gid://shopify/MediaImage/987"]},
+                {"variantId": "gid://shopify/ProductVariant/902", "mediaIds": ["gid://shopify/MediaImage/987"]},
+                {"variantId": "gid://shopify/ProductVariant/901", "mediaIds": ["gid://shopify/MediaImage/988"]},
+                {"variantId": "gid://shopify/ProductVariant/902", "mediaIds": ["gid://shopify/MediaImage/988"]},
+            ],
         )
 
 

@@ -22,11 +22,13 @@ from dotenv import load_dotenv
 
 from shopify_bulk_upload import (
     ParsedImage,
+    build_paired_groups,
     build_groups,
     build_product_tags,
     choose_title,
     collect_images,
     get_access_token,
+    load_pairings,
     load_product_type_map,
     make_body_html,
     move_uploaded_file,
@@ -759,6 +761,20 @@ def ensure_color_metaobjects(
     return color_to_metaobject_id
 
 
+def _canonical_images_by_color(images: List[ParsedImage]) -> List[ParsedImage]:
+    """Choose one image per color for variant rows, preferring front artwork when present."""
+    by_color: Dict[str, List[ParsedImage]] = {}
+    for img in images:
+        by_color.setdefault(img.color_display, []).append(img)
+
+    canonical: List[ParsedImage] = []
+    for color in sorted(by_color.keys(), key=lambda value: value.lower()):
+        color_images = by_color[color]
+        front = next((item for item in color_images if item.position == "front"), None)
+        canonical.append(front if front else color_images[0])
+    return canonical
+
+
 def build_graphql_product_input(
     images: List[ParsedImage],
     title: str,
@@ -798,7 +814,8 @@ def build_graphql_product_input(
         product_options.append({"name": "Size", "values": [{"name": size} for size in effective_sizes]})
 
     variants = []
-    for img in sorted(images, key=lambda item: item.color_display):
+    variant_images = _canonical_images_by_color(images)
+    for img in variant_images:
         if effective_sizes:
             for size in effective_sizes:
                 if color_to_metaobject_id and swatch_namespace and swatch_key:
@@ -1061,6 +1078,9 @@ def create_products(
 
         color_to_media_gid: Dict[str, str] = {}
 
+        variant_images_for_linking = _canonical_images_by_color(images)
+        variant_image_paths = {img.file_path for img in variant_images_for_linking}
+
         for img in images:
             uploaded = rest_client.upload_product_image(
                 product_id=product_id,
@@ -1077,6 +1097,11 @@ def create_products(
                 f" | File='{img.file_path.name}'"
                 f" | Color={img.color_display}"
             )
+
+            if img.file_path not in variant_image_paths:
+                moved_to = move_uploaded_file(img.file_path, uploaded_dir)
+                print(f"  Moved uploaded file -> '{moved_to}'")
+                continue
 
             if effective_sizes:
                 linked_variant_ids: List[int] = []
@@ -1198,8 +1223,9 @@ def main() -> int:
 
     try:
         product_type_map = load_product_type_map(product_type_map_path)
-        parsed_images = collect_images(folder, product_type_map)
-        groups = build_groups(parsed_images)
+        parsed_images = collect_images(folder, product_type_map, skip_dir=uploaded_dir)
+        pairings = load_pairings(folder)
+        groups = build_paired_groups(parsed_images, pairings) if pairings else build_groups(parsed_images)
     except Exception as exc:
         print(f"Error while parsing folder: {exc}")
         return 1
