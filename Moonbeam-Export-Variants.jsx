@@ -224,6 +224,10 @@ function showStyleSelectionDialog(styleNames) {
 }
 
 function showMatrixDialog(styleInfos, artworkNames) {
+    var BLANK_ARTWORK = "__BLANK__";
+    var artworkChoices = artworkNames.slice(0);
+    artworkChoices.push(BLANK_ARTWORK);
+
     var rows = [];
     for (var i = 0; i < styleInfos.length; i++) {
         var si = styleInfos[i];
@@ -234,8 +238,9 @@ function showMatrixDialog(styleInfos, artworkNames) {
 
     // Single-letter column labels so columns stay narrow
     var colLabels = [];
-    for (var a = 0; a < artworkNames.length; a++) {
-        colLabels.push(artworkNames.length <= 26 ? String.fromCharCode(65 + a) : String(a + 1));
+    for (var a = 0; a < artworkChoices.length; a++) {
+        if (a < artworkNames.length) colLabels.push(artworkNames.length <= 26 ? String.fromCharCode(65 + a) : String(a + 1));
+        else colLabels.push("BL");
     }
 
     var CHARS_LABEL = 26;  // statictext 'characters' width for row labels
@@ -281,7 +286,7 @@ function showMatrixDialog(styleInfos, artworkNames) {
             rlbl.characters = CHARS_LABEL;
             rlbl.minimumSize = [LABEL_PX, ROW_H];
             rlbl.maximumSize = [LABEL_PX, ROW_H];
-            for (var a = 0; a < artworkNames.length; a++) {
+            for (var a = 0; a < artworkChoices.length; a++) {
                 (function(ai) {
                     var cg = rg.add("group");
                     cg.minimumSize = [COL_MIN_W, ROW_H];
@@ -306,6 +311,7 @@ function showMatrixDialog(styleInfos, artworkNames) {
     // ---- Legend ----
     var legendLines = [];
     for (var a = 0; a < artworkNames.length; a++) legendLines.push(colLabels[a] + " = " + artworkNames[a]);
+    legendLines.push("BL = (Blank / No Artwork)");
     dialog.add("statictext", undefined, legendLines.join("     "));
 
     dialog.add("panel", [0, 0, 10, 1]);
@@ -322,16 +328,16 @@ function showMatrixDialog(styleInfos, artworkNames) {
     var assignments = {};
     for (var r = 0; r < rows.length; r++) {
         var selArt = null;
-        for (var a = 0; a < cbGrid[r].length; a++) { if (cbGrid[r][a].value) { selArt = artworkNames[a]; break; } }
+        for (var a = 0; a < cbGrid[r].length; a++) { if (cbGrid[r][a].value) { selArt = artworkChoices[a]; break; } }
         if (selArt) {
             var key = rows[r].styleName;
-            if (!assignments[key]) assignments[key] = { styleName: rows[r].styleName, styleCode: rows[r].styleCode, frontArtwork: null, backArtwork: null };
-            if (rows[r].position == "front") assignments[key].frontArtwork = selArt;
-            else                              assignments[key].backArtwork  = selArt;
+            if (!assignments[key]) assignments[key] = { styleName: rows[r].styleName, styleCode: rows[r].styleCode, frontSelection: null, backSelection: null };
+            if (rows[r].position == "front") assignments[key].frontSelection = selArt;
+            else                              assignments[key].backSelection  = selArt;
         }
     }
     var sa = [];
-    for (var sn in assignments) { var a2 = assignments[sn]; if (a2.frontArtwork || a2.backArtwork) sa.push(a2); }
+    for (var sn in assignments) { var a2 = assignments[sn]; if (a2.frontSelection || a2.backSelection) sa.push(a2); }
     return { styleAssignments: sa, launchUploader: lo.launchCheck.value, autoUpload: lo.autoUploadCheck.value, publishActive: lo.publishActiveCheck.value };
 }
 
@@ -376,12 +382,42 @@ if (!smartLayer) {
 
         if (matrixResult && matrixResult.styleAssignments.length > 0) {
 
+            var BLANK_ARTWORK = "__BLANK__";
+
+            // Resolve blank-side selections so opposite plain side still belongs to the same artwork product.
+            var resolvedAssignments = [];
+            for (var i = 0; i < matrixResult.styleAssignments.length; i++) {
+                var sel = matrixResult.styleAssignments[i];
+                var frontSel = sel.frontSelection;
+                var backSel = sel.backSelection;
+
+                var frontReal = (frontSel && frontSel != BLANK_ARTWORK) ? frontSel : null;
+                var backReal  = (backSel  && backSel  != BLANK_ARTWORK) ? backSel  : null;
+
+                var frontArtwork = frontReal;
+                var backArtwork  = backReal;
+
+                if (frontSel == BLANK_ARTWORK) frontArtwork = backReal;
+                if (backSel  == BLANK_ARTWORK) backArtwork  = frontReal;
+
+                if (!frontArtwork && !backArtwork) continue;
+
+                resolvedAssignments.push({
+                    styleName: sel.styleName,
+                    styleCode: sel.styleCode,
+                    frontSelection: frontSel,
+                    backSelection: backSel,
+                    frontArtwork: frontArtwork,
+                    backArtwork: backArtwork,
+                });
+            }
+
             // Build flat task list
             var tasks = [];
-            for (var i = 0; i < matrixResult.styleAssignments.length; i++) {
-                var sa = matrixResult.styleAssignments[i];
-                if (sa.frontArtwork) tasks.push({ artwork: sa.frontArtwork, position: "front", styleName: sa.styleName, styleCode: sa.styleCode });
-                if (sa.backArtwork)  tasks.push({ artwork: sa.backArtwork,  position: "back",  styleName: sa.styleName, styleCode: sa.styleCode });
+            for (var i = 0; i < resolvedAssignments.length; i++) {
+                var sa = resolvedAssignments[i];
+                if (sa.frontArtwork) tasks.push({ artwork: sa.frontSelection || sa.frontArtwork, outputArtwork: sa.frontArtwork, position: "front", styleName: sa.styleName, styleCode: sa.styleCode });
+                if (sa.backArtwork)  tasks.push({ artwork: sa.backSelection  || sa.backArtwork,  outputArtwork: sa.backArtwork,  position: "back",  styleName: sa.styleName, styleCode: sa.styleCode });
             }
 
             // Unique artworks to iterate over
@@ -398,8 +434,11 @@ if (!smartLayer) {
             for (var ui = 0; ui < uniqueArts.length; ui++) {
                 var artName = uniqueArts[ui];
 
-                // Show only this artwork
-                for (var ai = 0; ai < artDoc.layers.length; ai++) artDoc.layers[ai].visible = (artDoc.layers[ai].name == artName);
+                // Show only this artwork, or hide all artwork layers for blank-side exports.
+                for (var ai = 0; ai < artDoc.layers.length; ai++) {
+                    if (artName == BLANK_ARTWORK) artDoc.layers[ai].visible = false;
+                    else artDoc.layers[ai].visible = (artDoc.layers[ai].name == artName);
+                }
                 artDoc.save(); artDoc.close();
                 mainDoc = app.activeDocument;
                 smartLayer = findLayerRecursive(mainDoc, smartObjectLayerName);
@@ -440,7 +479,7 @@ if (!smartLayer) {
                             if (l3.typename != "LayerSet") l3.visible = (l3 === shirtLyr);
                         }
 
-                        exportFlattenedPNG(artName + "_" + shirtLyr.name);
+                        exportFlattenedPNG(task.outputArtwork + "_" + shirtLyr.name);
                     }
                 }
 
@@ -452,8 +491,8 @@ if (!smartLayer) {
 
             // Write pairings.json
             var pdata = { pairings: [] };
-            for (var i = 0; i < matrixResult.styleAssignments.length; i++) {
-                var sa2 = matrixResult.styleAssignments[i];
+            for (var i = 0; i < resolvedAssignments.length; i++) {
+                var sa2 = resolvedAssignments[i];
                 pdata.pairings.push({ style_code: sa2.styleCode, front_artwork: sa2.frontArtwork, back_artwork: sa2.backArtwork });
             }
             var pf = new File(exportFolder + "/pairings.json");
