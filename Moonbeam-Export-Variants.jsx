@@ -56,7 +56,7 @@ function detectArtworks(doc) {
     var arr = [];
     for (var i = 0; i < doc.layers.length; i++) {
         var lyr = doc.layers[i];
-        if (!isExcluded(lyr.name, excludeArtworks)) arr.push(lyr.name);
+        if (!isExcluded(lyr.name, excludeArtworks) && lyr.name.toLowerCase().indexOf("frame_") != 0) arr.push(lyr.name);
     }
     return arr;
 }
@@ -223,6 +223,22 @@ function showStyleSelectionDialog(styleNames) {
     return { styles: sel, launchUploader: lo.launchCheck.value, autoUpload: lo.autoUploadCheck.value, publishActive: lo.publishActiveCheck.value };
 }
 
+function wrapLegendEntries(entries, maxChars) {
+    var lines = [];
+    var currentLine = "";
+    for (var i = 0; i < entries.length; i++) {
+        var candidate = currentLine ? currentLine + "     " + entries[i] : entries[i];
+        if (currentLine && candidate.length > maxChars) {
+            lines.push(currentLine);
+            currentLine = entries[i];
+        } else {
+            currentLine = candidate;
+        }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+}
+
 function showMatrixDialog(styleInfos, artworkNames) {
     var BLANK_ARTWORK = "__BLANK__";
     var artworkChoices = artworkNames.slice(0);
@@ -309,10 +325,14 @@ function showMatrixDialog(styleInfos, artworkNames) {
     dialog.add("panel", [0, 0, 10, 1]);  // separator
 
     // ---- Legend ----
-    var legendLines = [];
-    for (var a = 0; a < artworkNames.length; a++) legendLines.push(colLabels[a] + " = " + artworkNames[a]);
-    legendLines.push("BL = (Blank / No Artwork)");
-    dialog.add("statictext", undefined, legendLines.join("     "));
+    var legendEntries = [];
+    for (var a = 0; a < artworkNames.length; a++) legendEntries.push(colLabels[a] + " = " + artworkNames[a]);
+    legendEntries.push("BL = (Blank / No Artwork)");
+    var legendLines = wrapLegendEntries(legendEntries, 72);
+    var legendWidth = LABEL_PX + artworkChoices.length * (COL_MIN_W + 2);
+    var legend = dialog.add("statictext", undefined, legendLines.join("\n"), { multiline: true });
+    legend.minimumSize = [legendWidth, legendLines.length * ROW_H];
+    legend.maximumSize = [legendWidth, legendLines.length * ROW_H];
 
     dialog.add("panel", [0, 0, 10, 1]);
 
@@ -559,285 +579,3 @@ if (!smartLayer) {
 }
 
 } // end exportFolder check
-
-
-// ---- CONFIG ----
-var exportFolder = Folder.selectDialog("Choose export folder");
-var smartObjectLayerName = "Artworks";
-var excludeArtworks = ["DTG Printable Area Frame"];
-
-// ---- HELPERS ----
-function isExcluded(name, list) {
-    for (var i = 0; i < list.length; i++) {
-        if (list[i] == name) return true;
-    }
-    return false;
-}
-
-function findLayerRecursive(parent, name) {
-    for (var i = 0; i < parent.layers.length; i++) {
-        var layer = parent.layers[i];
-        if (layer.name == name) return layer;
-        if (layer.typename == "LayerSet") {
-            var found = findLayerRecursive(layer, name);
-            if (found) return found;
-        }
-    }
-    return null;
-}
-
-function setVisibilityRecursive(layer, visible) {
-    layer.visible = visible;
-    if (layer.typename == "LayerSet") {
-        for (var i = 0; i < layer.layers.length; i++) {
-            setVisibilityRecursive(layer.layers[i], visible);
-        }
-    }
-}
-
-function detectFoldersRecursive(parent, prefix) {
-    var results = [];
-    for (var i = 0; i < parent.layers.length; i++) {
-        var lyr = parent.layers[i];
-        if (lyr.typename == "LayerSet") {
-            if (lyr.name.indexOf(prefix) == 0) {
-                results.push(lyr.name);
-            }
-            var sub = detectFoldersRecursive(lyr, prefix);
-            for (var j = 0; j < sub.length; j++) {
-                results.push(sub[j]);
-            }
-        }
-    }
-    return results;
-}
-
-function detectArtworks(doc) {
-    var arr = [];
-    for (var i = 0; i < doc.layers.length; i++) {
-        var lyr = doc.layers[i];
-        if (!isExcluded(lyr.name, excludeArtworks)) {
-            arr.push(lyr.name);
-        }
-    }
-    return arr;
-}
-
-function showStyleSelectionDialog(styleNames) {
-    var dialog = new Window("dialog", "Select styles to export", [100, 100, 420, 390]);
-    dialog.orientation = "column";
-    dialog.alignChildren = "left";
-    dialog.margins = 16;
-
-    dialog.add("statictext", undefined, "Choose which styles to process:");
-
-    var stylesPanel = dialog.add("panel", undefined, "Styles");
-    stylesPanel.orientation = "column";
-    stylesPanel.alignChildren = "left";
-    stylesPanel.margins = 12;
-    stylesPanel.alignment = ["fill", "top"];
-    stylesPanel.minimumSize = [340, Math.max(120, styleNames.length * 26 + 20)];
-
-    var checkboxes = [];
-    for (var i = 0; i < styleNames.length; i++) {
-        var checkbox = stylesPanel.add("checkbox", undefined, styleNames[i]);
-        checkbox.value = true;
-        checkboxes.push(checkbox);
-    }
-
-    // ---- Launch uploader option ----
-    var launchCheck = dialog.add("checkbox", undefined, "Launch Moonbeam Uploader when export completes");
-    launchCheck.value = false;
-
-    var autoUploadCheck = dialog.add("checkbox", undefined, "    \u2514 Auto-upload immediately on launch");
-    autoUploadCheck.value = false;
-    autoUploadCheck.enabled = false;
-
-    var publishActiveCheck = dialog.add("checkbox", undefined, "        \u2514 Publish as Active");
-    publishActiveCheck.value = false;
-    publishActiveCheck.enabled = false;
-
-    launchCheck.onClick = function() {
-        autoUploadCheck.enabled = launchCheck.value;
-        if (!launchCheck.value) {
-            autoUploadCheck.value = false;
-            publishActiveCheck.value = false;
-            publishActiveCheck.enabled = false;
-        }
-    };
-
-    autoUploadCheck.onClick = function() {
-        publishActiveCheck.enabled = autoUploadCheck.value;
-        if (!autoUploadCheck.value) publishActiveCheck.value = false;
-    };
-
-    var buttonGroup = dialog.add("group");
-    buttonGroup.alignment = "right";
-    var okButton = buttonGroup.add("button", undefined, "OK");
-    var cancelButton = buttonGroup.add("button", undefined, "Cancel");
-
-    okButton.onClick = function() {
-        dialog.close(1);
-    };
-    cancelButton.onClick = function() {
-        dialog.close(2);
-    };
-
-    dialog.onShow = function() {
-        dialog.layout.layout(true);
-        dialog.layout.resize();
-    };
-
-    dialog.layout.layout(true);
-    dialog.layout.resize();
-    dialog.center();
-    var result = dialog.show();
-    if (result != 1) return null;
-
-    var selectedStyles = [];
-    for (var i = 0; i < checkboxes.length; i++) {
-        if (checkboxes[i].value) selectedStyles.push(styleNames[i]);
-    }
-    return { styles: selectedStyles, launchUploader: launchCheck.value, autoUpload: autoUploadCheck.value, publishActive: publishActiveCheck.value };
-}
-
-function exportFlattenedPNG(filename) {
-    var dup = app.activeDocument.duplicate();
-    var file = new File(exportFolder + "/" + filename + ".png");
-
-    // Export PNG-24 without flattening so transparency is preserved.
-    var opts = new ExportOptionsSaveForWeb();
-    opts.format = SaveDocumentType.PNG;
-    opts.PNG8 = false;
-    opts.transparency = true;
-    opts.interlaced = false;
-    opts.includeProfile = false;
-
-    dup.exportDocument(file, ExportType.SAVEFORWEB, opts);
-    dup.close(SaveOptions.DONOTSAVECHANGES);
-}
-
-// ---- MAIN SCRIPT ----
-var mainDoc = app.activeDocument;
-var smartLayer = findLayerRecursive(mainDoc, smartObjectLayerName);
-
-if (!smartLayer) {
-    alert("Smart Object layer '" + smartObjectLayerName + "' not found.");
-} else {
-
-    // ---- Detect styles ONLY at top level ----
-    var styles = [];
-    for (var i = 0; i < mainDoc.layers.length; i++) {
-        var lyr = mainDoc.layers[i];
-        if (lyr.typename == "LayerSet" &&
-            lyr.name.indexOf("style_") == 0 &&
-            lyr.name != "Backgrounds") {
-            styles.push(lyr.name);
-        }
-    }
-
-    var dialogResult = showStyleSelectionDialog(styles);
-    if (!dialogResult || !dialogResult.styles || dialogResult.styles.length == 0) {
-        alert("No styles selected. Export cancelled.");
-    } else {
-    var selectedStyles = dialogResult.styles;
-    var launchUploader = dialogResult.launchUploader;
-    var autoUpload = dialogResult.autoUpload;
-    var publishActive = dialogResult.publishActive;
-
-    // Open Smart Object once
-    mainDoc.activeLayer = smartLayer;
-    var idEdit = stringIDToTypeID("placedLayerEditContents");
-    executeAction(idEdit, undefined, DialogModes.NO);
-
-    var artworkDoc = app.activeDocument;
-    var artworks = detectArtworks(artworkDoc);
-
-    for (var a = 0; a < artworks.length; a++) {
-
-        // Toggle artwork inside Smart Object
-        for (var i = 0; i < artworkDoc.layers.length; i++) {
-            artworkDoc.layers[i].visible = (artworkDoc.layers[i].name == artworks[a]);
-        }
-
-        artworkDoc.save();
-        artworkDoc.close();
-
-        mainDoc = app.activeDocument;
-
-        // Ensure Artworks layer is visible
-        smartLayer = findLayerRecursive(mainDoc, smartObjectLayerName);
-        if (smartLayer) smartLayer.visible = true;
-
-        for (var s = 0; s < selectedStyles.length; s++) {
-            var styleName = selectedStyles[s];
-
-            // Toggle only the selected style
-            for (var ss = 0; ss < styles.length; ss++) {
-                var styleLayer = mainDoc.layers.getByName(styles[ss]);
-                setVisibilityRecursive(styleLayer, styles[ss] == styleName);
-            }
-
-            // Colours inside this style
-            var styleFolder = mainDoc.layers.getByName(styleName);
-            var styleColours = detectFoldersRecursive(styleFolder, "Colour_");
-
-            for (var c = 0; c < styleColours.length; c++) {
-
-                // Toggle only selected colour inside THIS style
-                for (var cc = 0; cc < styleColours.length; cc++) {
-                    var colLayer = findLayerRecursive(styleFolder, styleColours[cc]);
-                    if (colLayer) setVisibilityRecursive(colLayer, styleColours[cc] == styleColours[c]);
-                }
-
-                // ---- NEW: extract shirt layer name ----
-                var colourFolder = findLayerRecursive(styleFolder, styleColours[c]);
-                var shirtLayerName = "";
-
-                for (var sl = 0; sl < colourFolder.layers.length; sl++) {
-                    var lyr = colourFolder.layers[sl];
-                    if (lyr.typename != "LayerSet") {
-                        shirtLayerName = lyr.name;
-                        break;
-                    }
-                }
-
-                // ---- NEW: filename format ----
-                var filename = artworks[a] + "_" + shirtLayerName;
-
-                exportFlattenedPNG(filename);
-            }
-        }
-
-        // Re-open Smart Object for next artwork
-        mainDoc.activeLayer = smartLayer;
-        executeAction(idEdit, undefined, DialogModes.NO);
-        artworkDoc = app.activeDocument;
-    }
-
-    // Launch Moonbeam Uploader if the option was ticked
-    if (launchUploader) {
-        var folderPath = exportFolder.fsName;
-        var isWindows = ($.os.toLowerCase().indexOf("windows") >= 0);
-        if (isWindows) {
-            // Write folder path to a handoff file, then launch
-            var handoff = new File("C:/Program Files/Moonbeam-Uploader/.launch_folder");
-            handoff.open("w");
-            handoff.write(folderPath);
-            if (autoUpload) handoff.write("\nauto_upload=true");
-            if (publishActive) handoff.write("\npublish_active=true");
-            handoff.close();
-            app.system('start "" "C:\\Program Files\\Moonbeam-Uploader\\run_gui_windows.bat"');
-        } else {
-            // Write folder path to a handoff file, then launch
-            var handoff = new File("/Applications/Moonbeam-Uploader/.launch_folder");
-            handoff.open("w");
-            handoff.write(folderPath);
-            if (autoUpload) handoff.write("\nauto_upload=true");
-            if (publishActive) handoff.write("\npublish_active=true");
-            handoff.close();
-            app.system('open "/Applications/Moonbeam-Uploader/run_gui_mac.command"');
-        }
-    }
-    }
-}
